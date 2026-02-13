@@ -1,0 +1,20 @@
+{
+  "name": "fixed-point-trickery",
+  "version": "0.0",
+  "builtin-baseline": "50c0cb48a0cf2f6fc5c7b2c0d2bafbe26d0a7ca2",
+  "dependencies": [
+    "assimp",
+    "catch2",
+    "directxtk",
+    "glm",
+    {
+      "name": "imgui",
+      "features": [
+        "dx11-binding"
+      ]
+    },
+    "sdl2",
+    "tinyobjloader",
+    "plf-colony"
+  ]
+}
