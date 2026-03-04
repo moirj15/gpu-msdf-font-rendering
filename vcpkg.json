@@ -15,6 +15,11 @@
     },
     "sdl2",
     "tinyobjloader",
-    "plf-colony"
+    "plf-colony",
+    {
+      "name": "msdfgen",
+      "features": [ "extensions" ],
+      "default-features": false
+    }
   ]
 }

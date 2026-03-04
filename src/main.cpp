@@ -5,11 +5,36 @@
 #include <SDL2/SDL.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <msdfgen-ext.h>
+#include <msdfgen.h>
 
-constexpr u32 WIDTH = 1920;
+constexpr u32 WIDTH  = 1920;
 constexpr u32 HEIGHT = 1080;
 
-int main(int argc, char **argv) {
+using namespace msdfgen;
+int main(int argc, char **argv)
+{
+  if (FreetypeHandle *ft = initializeFreetype())
+  {
+    if (FontHandle *font = loadFont(ft, "C:\\Windows\\Fonts\\arialbd.ttf"))
+    {
+      Shape shape;
+      if (loadGlyph(shape, font, 'A', FONT_SCALING_EM_NORMALIZED))
+      {
+        shape.normalize();
+        //                      max. angle
+        edgeColoringSimple(shape, 3.0);
+        //          output width, height
+        Bitmap<float, 3> msdf(32, 32);
+        //                            scale, translation (in em's)
+        SDFTransformation t(Projection(32.0, Vector2(0.125, 0.125)), Range(0.125));
+        generateMSDF(msdf, shape, t);
+        savePng(msdf, "output.png");
+      }
+      destroyFont(font);
+    }
+    deinitializeFreetype(ft);
+  }
   const dx::Window window = dx::CreateWin(WIDTH, HEIGHT, "win");
 
   dx::RenderContext ctx = dx::InitContext(window);
@@ -18,13 +43,15 @@ int main(int argc, char **argv) {
 
   ShaderWatcher shaderWatcher{ctx.Device()};
 
-
   SDL_Event e;
-  bool running = true;
+  bool      running = true;
 
-  while (running) {
-    while (SDL_PollEvent(&e) > 0) {
-      if (e.type == SDL_QUIT) {
+  while (running)
+  {
+    while (SDL_PollEvent(&e) > 0)
+    {
+      if (e.type == SDL_QUIT)
+      {
         running = false;
       }
     }

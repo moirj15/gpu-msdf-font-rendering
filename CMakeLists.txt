@@ -11,6 +11,7 @@ find_package(imgui CONFIG REQUIRED)
 find_package(assimp CONFIG REQUIRED)
 find_package(Catch2 CONFIG REQUIRED)
 find_package(directxtk CONFIG REQUIRED)
+find_package(msdfgen CONFIG REQUIRED)
 
 add_executable(gpu_msdf_font_rendering
         src/main.cpp
@@ -38,6 +39,10 @@ target_link_libraries(gpu_msdf_font_rendering PRIVATE
         imgui::imgui
         assimp::assimp
         Microsoft::DirectXTK
+        msdfgen::msdfgen 
+        msdfgen::msdfgen-ext 
+        msdfgen::msdfgen-core 
+        msdfgen::msdfgen-full
         gdi32.lib
         user32.lib
         kernel32.lib
