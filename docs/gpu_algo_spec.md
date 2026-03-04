@@ -194,9 +194,72 @@ for curves we must take the distance to the closest edge and calculate for `t`
 
 # GPU Algorithm Design
 
-Let us first describe the order of operations involved in the CPU based algorithm described in the Thesis:
 
-1. Transform the current texel's texture coordinate to a coordinate relative to the coordinate system of the shape
-2. For each pixel
-    1. Find the closest edge to the current pixel
-    2. 
+```c++
+
+struct LinearBezier 
+{
+    float2 p0;
+    float2 p1;
+};
+
+struct QuadraticBezier 
+{
+    float2 p0;
+    float2 p1;
+    float2 p2;
+};
+
+struct CubicBezier 
+{
+    float2 p0;
+    float2 p1;
+    float2 p2;
+    float2 p3;
+};
+
+Buffer<LinearBezier> linearEdges;
+Buffer<QuadraticBezier> quadraticEdges;
+Buffer<CubicBezier> cubicEdges;
+
+float LinearEdgeSignedDistance(flat2 P, LinearBezier edge);
+float QuadraticEdgeSignedDistance(flat2 P, QuadraticBezier edge);
+float CubicSignedDistance(flat2 P, CubicBezier edge);
+
+void UpdateDistances(float d, int edge, inout float3 distances, inout int3 edges) 
+{
+    if e.color.r != 0 && CMP(d, dRed) < 0
+    {
+        dRed = d;
+        eRed = e;
+    }
+    if e.color.g != 0 && CMP(d, dGreen) < 0
+    {
+        dGreen = d;
+        eGreen = e;
+    }
+    if e.color.b != 0 && CMP(d, dBlue) < 0
+    {
+        dBlue = d;
+        eBlue = e;
+    }
+}
+
+float3 GeneratePixelGPU(float2 P) 
+{
+    float3 linearDistances = {0, 0, 0};
+    int3 linearEdges = {-1, -1, -1};
+    float3 quadraticDistances = {0, 0, 0};
+    int3   quadraticEdges = {-1, -1, -1};
+    float3 cubicDistances = {0, 0, 0};
+    int3   cubicEdges = {-1, -1, -1};
+
+    for (int i = 0; i < linearEdges.size(); i++) 
+    {
+        LinearBezier edge = linearEdges[i];
+        float d = LinearEdgeSignedDistance(P, edge);
+    }
+}
+
+```
+
