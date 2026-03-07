@@ -316,6 +316,5 @@ float3 GeneratePixelGPU(float2 P)
     float3 colors = EdgeSignedPseudoDistance(P, closestDistances);
     return distanceColor(colors);
 }
-
 ```
 
