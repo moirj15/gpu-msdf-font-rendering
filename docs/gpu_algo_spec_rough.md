@@ -195,16 +195,21 @@ for curves we must take the distance to the closest edge and calculate for `t`
 # GPU Algorithm Design
 
 
+
 ```c++
+// Edge coloring will have to be done serially at the glyph level, but we can color multiple
+// glyphs at once
 
 struct LinearBezier 
 {
+    uint color;
     float2 p0;
     float2 p1;
 };
 
 struct QuadraticBezier 
 {
+    uint color;
     float2 p0;
     float2 p1;
     float2 p2;
@@ -212,53 +217,104 @@ struct QuadraticBezier
 
 struct CubicBezier 
 {
+    uint color;
     float2 p0;
     float2 p1;
     float2 p2;
     float2 p3;
 };
 
-Buffer<LinearBezier> linearEdges;
-Buffer<QuadraticBezier> quadraticEdges;
-Buffer<CubicBezier> cubicEdges;
+struct Edge 
+{
+    float3 color;
+};
+
+StructuredBuffer<LinearBezier> linearEdges;
+StructuredBuffer<QuadraticBezier> quadraticEdges;
+StructuredBuffer<CubicBezier> cubicEdges;
 
 float LinearEdgeSignedDistance(flat2 P, LinearBezier edge);
 float QuadraticEdgeSignedDistance(flat2 P, QuadraticBezier edge);
 float CubicSignedDistance(flat2 P, CubicBezier edge);
+float3 UnpackColor(uint color);
+uint PackColor(float3 color);
 
-void UpdateDistances(float d, int edge, inout float3 distances, inout int3 edges) 
+struct EdgeColors 
 {
-    if e.color.r != 0 && CMP(d, dRed) < 0
+    float3 red; 
+    float3 green; 
+    float3 blue;
+};
+
+void UpdateDistances(float d, float3 edgeColor, inout float3 distances, out Edges outEdgeColors) 
+{
+    if edgeColor.r != 0 && CMP(d, distances.r) < 0
     {
-        dRed = d;
-        eRed = e;
+        distances.r = d;
+        outEdgeColors.red = edgeColor;
     }
-    if e.color.g != 0 && CMP(d, dGreen) < 0
+    if edgeColor.g != 0 && CMP(d, distances.g) < 0
     {
-        dGreen = d;
-        eGreen = e;
+        distances.g = d;
+        outEdgeColors.green = edgeColor;
     }
-    if e.color.b != 0 && CMP(d, dBlue) < 0
+    if edgeColor.b != 0 && CMP(d, distances.b) < 0
     {
-        dBlue = d;
-        eBlue = e;
+        distances.b = d;
+        outEdgeColors.blue = edgeColor;
     }
 }
 
 float3 GeneratePixelGPU(float2 P) 
 {
     float3 linearDistances = {0, 0, 0};
-    int3 linearEdges = {-1, -1, -1};
+    EdgeColors linearEdgeColors = {};
     float3 quadraticDistances = {0, 0, 0};
-    int3   quadraticEdges = {-1, -1, -1};
+    EdgeColors   quadraticEdgeColors = {};
     float3 cubicDistances = {0, 0, 0};
-    int3   cubicEdges = {-1, -1, -1};
+    EdgeColors   cubicEdgeColors = {};
 
     for (int i = 0; i < linearEdges.size(); i++) 
     {
         LinearBezier edge = linearEdges[i];
+        float3 edgeColor = UnpackColor(edge.color);
         float d = LinearEdgeSignedDistance(P, edge);
+        UpdateDistances(d, edgeColor, linearDistances, linearEdgeColors);
+        edge.color = PackColor(edgeColor);
     }
+
+    for (int i = 0; i < quadraticEdges.size(); i++) 
+    {
+        quadraticBezier edge = quadraticEdges[i];
+        float3 edgeColor = UnpackColor(edge.color);
+        float d = QuadraticEdgeSignedDistance(P, edge);
+        UpdateDistances(d, edgeColor, QuadraticDistances, QuadraticEdgeColors);
+        edge.color = PackColor(edgeColor);
+    }
+
+    for (int i = 0; i < CubicEdges.size(); i++) 
+    {
+        CubicBezier edge = CubicEdges[i];
+        float3 edgeColor = UnpackColor(edge.color);
+        float d = CubicEdgeSignedDistance(P, edge);
+        UpdateDistances(d, edgeColor, CubicDistances, CubicEdgeColors);
+        edge.color = PackColor(edgeColor);
+    }
+
+    float3 closestDistances = {};
+
+    GetFinalValues(
+        linearDistances,
+        linearEdgeColors,
+        quadraticDistances,
+        quadraticEdgeColors,
+        cubicDistances,
+        cubicEdgeColor,
+        closestDistances,
+    );
+
+    float3 colors = EdgeSignedPseudoDistance(P, closestDistances);
+    return distanceColor(colors);
 }
 
 ```
