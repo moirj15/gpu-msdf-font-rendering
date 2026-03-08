@@ -87,7 +87,6 @@ Quadrant FindQuadrant(float2 P, float signedDistance, float closestPortion) {
 ## Algorithm 6 Simple edge color assignment assuring that no two adjacent edges of shape S share the same color (pg 40)
 
 ```c++
-
 struct Edge 
 {
     float3 color;
