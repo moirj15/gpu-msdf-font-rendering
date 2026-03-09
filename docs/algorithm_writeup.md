@@ -1,3 +1,4 @@
+# GPU Based Multi-Signed Distance Field Generation for Font Glyphs
 Chlumsky's thesis introduces several methods for generating distance fields for font rendering. We'll be focusing on the two algorithms used in generating multi signed distance fields: edge coloring and the pixel generation algorithm.
 
 ## Edge Coloring
@@ -139,7 +140,8 @@ struct EdgeColors
     float3 blue;
 };
 
-void UpdateDistances(float d, float3 edgeColor, inout float3 distances, out Edges outEdgeColors) 
+void UpdateDistances(float d, float3 edgeColor, inout float3 distances, 
+    out Edges outEdgeColors) 
 {
     if edgeColor.r != 0 && CMP(d, distances.r) < 0
     {
@@ -159,7 +161,65 @@ void UpdateDistances(float d, float3 edgeColor, inout float3 distances, out Edge
 }
 ```
 
+Finally, our version of `GeneratePixel()` looks like the following:
 
+```c++
+float3 GeneratePixelGPU(float2 P) 
+{
+    float3 linearDistances = {0, 0, 0};
+    EdgeColors linearEdgeColors = {};
+    float3 quadraticDistances = {0, 0, 0};
+    EdgeColors   quadraticEdgeColors = {};
+    float3 cubicDistances = {0, 0, 0};
+    EdgeColors   cubicEdgeColors = {};
+
+    for (int i = 0; i < linearEdges.size(); i++) 
+    {
+        LinearBezier edge = linearEdges[i];
+        float3 edgeColor = UnpackColor(edge.color);
+        float d = LinearEdgeSignedDistance(P, edge);
+        UpdateDistances(d, edgeColor, linearDistances, linearEdgeColors);
+        edge.color = PackColor(edgeColor);
+    }
+
+    for (int i = 0; i < quadraticEdges.size(); i++) 
+    {
+        quadraticBezier edge = quadraticEdges[i];
+        float3 edgeColor = UnpackColor(edge.color);
+        float d = QuadraticEdgeSignedDistance(P, edge);
+        UpdateDistances(d, edgeColor, QuadraticDistances, QuadraticEdgeColors);
+        edge.color = PackColor(edgeColor);
+    }
+
+    for (int i = 0; i < CubicEdges.size(); i++) 
+    {
+        CubicBezier edge = CubicEdges[i];
+        float3 edgeColor = UnpackColor(edge.color);
+        float d = CubicEdgeSignedDistance(P, edge);
+        UpdateDistances(d, edgeColor, CubicDistances, CubicEdgeColors);
+        edge.color = PackColor(edgeColor);
+    }
+
+    float3 closestDistances = {};
+
+    GetFinalValues(
+        linearDistances,
+        linearEdgeColors,
+        quadraticDistances,
+        quadraticEdgeColors,
+        cubicDistances,
+        cubicEdgeColor,
+        closestDistances,
+    );
+
+    float3 colors = EdgeSignedPseudoDistance(P, closestDistances);
+    return distanceColor(colors);
+}
+```
+
+Where `LinearEdgeSignedDistance()`, `QuadraticEdgeSignedDistance()`, and `CubicEdgeSignedDistance()` calculate the edge signed distance for the specified order of bezier curve and `GetFinalValues()` selects the final distance values that are passed to `EdgeSignedPseudoDistance()`. We can then use this version of the algorithm in a compute dispatch illustrated by the following flowchart:
+
+![dispatch](diagrams/glyph_dispatch.svg)
 
 - Thesis goes over a number of methods for generating distance fields
 - We'll be focusing on the author's algorithms for generating multi signed distance fields
