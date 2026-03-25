@@ -1,0 +1,76 @@
+struct VSOut
+{
+  float4 position : SV_Position;
+  float2 texCoord : TEXCOORD;
+};
+
+VSOut VSMain(uint vertexID : SV_VertexID)
+{
+  float2 pos[] =
+  {
+    float2(-1.0, 1.0),
+    float2(-1.0, -1.0),
+    float2(1.0, 1.0),
+    float2(1.0, 1.0),
+    float2(-1.0, -1.0),
+    float2(1.0, -1.0),
+  };
+  float2 texCoord[] =
+  {
+    float2(0, 0),
+    float2(0, 1),
+    float2(1, 0),
+    float2(1, 0),
+    float2(0, 1),
+    float2(1, 1),
+  };
+  VSOut ret = (VSOut) 0;
+  ret.position = float4(pos[vertexID], 0, 1);
+  ret.texCoord = texCoord[vertexID];
+  return ret;
+}
+
+
+Texture2D msdf : register(t0);
+SamplerState samp : register(s0);
+
+//uniform vec4 bgColor;
+//uniform vec4 fgColor;
+static const float4 bgColor = float4(0.0, 0.0, 0.0, 0.0);
+static const float4 fgColor = float4(1.0, 1.0, 1.0, 1.0);
+
+cbuffer constants : register(b0)
+{
+  float pxRange; // set to distance field's pixel range
+};
+
+float2 sqr(float2 x)
+{
+  return x * x;
+}
+
+float screenPxRange(float2 texCoord)
+{
+  uint2 texSize = 0;
+  uint mipCount = 0;
+  msdf.GetDimensions(0, texSize.x, texSize.y, mipCount);
+  float2 unitRange = float2(pxRange, pxRange) / float2(texSize);
+    // If inversesqrt is not available, use vec2(1.0)/sqrt
+  float2 screenTexSize = rsqrt(sqr(ddx_fine(texCoord)) + rsqrt(ddy_fine(texCoord)));
+    // Can also be approximated as screenTexSize = vec2(1.0)/fwidth(texCoord);
+  return max(0.5 * dot(unitRange, screenTexSize), 1.0);
+}
+
+float median(float r, float g, float b)
+{
+  return max(min(r, g), min(max(r, g), b));
+}
+
+float4 PSMain(VSOut vsOut) : SV_Target
+{
+  float3 msd = msdf.Sample(samp, vsOut.texCoord).rgb;
+  float sd = median(msd.r, msd.g, msd.b);
+  float screenPxDistance = screenPxRange(vsOut.texCoord) * (sd - 0.5);
+  float opacity = clamp(screenPxDistance + 0.5, 0.0, 1.0);
+  return lerp(bgColor, fgColor, opacity);
+}
