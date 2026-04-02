@@ -17,12 +17,12 @@ VSOut VSMain(uint vertexID : SV_VertexID)
   };
   float2 texCoord[] =
   {
+    float2(0, 1),
     float2(0, 0),
-    float2(0, 1),
-    float2(1, 0),
-    float2(1, 0),
-    float2(0, 1),
     float2(1, 1),
+    float2(1, 1),
+    float2(0, 0),
+    float2(1, 0),
   };
   VSOut ret = (VSOut) 0;
   ret.position = float4(pos[vertexID], 0, 1);
@@ -39,10 +39,12 @@ SamplerState samp : register(s0);
 static const float4 bgColor = float4(0.0, 0.0, 0.0, 0.0);
 static const float4 fgColor = float4(1.0, 1.0, 1.0, 1.0);
 
-cbuffer constants : register(b0)
-{
-  float pxRange; // set to distance field's pixel range
-};
+//cbuffer constants : register(b0)
+//{
+//  float pxRange; // set to distance field's pixel range
+//};
+//static const float pxRange = 1920.0 / 32.0;
+static const float2 pxRange = { 1920.0 / 32.0, 1080.0 / 32.0 };
 
 float2 sqr(float2 x)
 {
@@ -54,7 +56,8 @@ float screenPxRange(float2 texCoord)
   uint2 texSize = 0;
   uint mipCount = 0;
   msdf.GetDimensions(0, texSize.x, texSize.y, mipCount);
-  float2 unitRange = float2(pxRange, pxRange) / float2(texSize);
+  //float2 unitRange = float2(pxRange, pxRange) / float2(texSize);
+  float2 unitRange = pxRange / float2(texSize);
     // If inversesqrt is not available, use vec2(1.0)/sqrt
   float2 screenTexSize = rsqrt(sqr(ddx_fine(texCoord)) + rsqrt(ddy_fine(texCoord)));
     // Can also be approximated as screenTexSize = vec2(1.0)/fwidth(texCoord);

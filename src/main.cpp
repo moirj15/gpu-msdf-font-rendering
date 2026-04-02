@@ -14,6 +14,7 @@ constexpr u32 HEIGHT = 1080;
 using namespace msdfgen;
 int main(int argc, char **argv)
 {
+  Bitmap<float, 3> msdf(32, 32);
   if (FreetypeHandle *ft = initializeFreetype())
   {
     if (FontHandle *font = loadFont(ft, "C:\\Windows\\Fonts\\arialbd.ttf"))
@@ -25,7 +26,6 @@ int main(int argc, char **argv)
         //                      max. angle
         edgeColoringSimple(shape, 3.0);
         //          output width, height
-        Bitmap<float, 3> msdf(32, 32);
         //                            scale, translation (in em's)
         SDFTransformation t(Projection(32.0, Vector2(0.125, 0.125)), Range(0.125));
         generateMSDF(msdf, shape, t);
@@ -48,14 +48,15 @@ int main(int argc, char **argv)
 
   RenderProgramHandle textRenderProgram =
     shaderWatcher.RegisterShader("shaders/text.hlsl", "shaders/text.hlsl");
+  // ComputeProgramHandle msdfGenProgram = shaderWatcher.RegisterShader("shaders/msdf_gen.hlsl");
 
   ComPtr<ID3D11Texture2D>          msdfTex;
   ComPtr<ID3D11ShaderResourceView> msdfView;
   ComPtr<ID3D11SamplerState>       msdfSampler;
 
   D3D11_TEXTURE2D_DESC msdfTexDesc = {
-    .Width     = 1920,
-    .Height    = 1080,
+    .Width     = static_cast<u32>(msdf.width()),
+    .Height    = static_cast<u32>(msdf.height()),
     .MipLevels = 1,
     .ArraySize = 1,
     .Format    = DXGI_FORMAT_R8G8B8A8_UNORM,
@@ -66,12 +67,32 @@ int main(int argc, char **argv)
         .Quality = 0,
       },
     .Usage          = D3D11_USAGE_DEFAULT,
-    .BindFlags      = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE,
+    .BindFlags      = D3D11_BIND_SHADER_RESOURCE,
     .CPUAccessFlags = 0,
     .MiscFlags      = 0,
   };
 
-  dx::ThrowIfFailed(ctx.device->CreateTexture2D(&msdfTexDesc, nullptr, msdfTex.GetAddressOf()));
+  // BitmapRef<float, 3> msdfData = msdf;
+  std::vector<u32> glyphData;
+  for (u32 y = 0; y < msdf.height(); y++)
+  {
+    for (u32 x = 0; x < msdf.width(); x++)
+    {
+      std::span rgbF32 = {msdf(x, y), 3};
+      u32       rgb    = 0xff;
+      rgb |= static_cast<u32>(rgbF32[0] * 255) << 24;
+      rgb |= static_cast<u32>(rgbF32[1] * 255) << 16;
+      rgb |= static_cast<u32>(rgbF32[2] * 255) << 8;
+      glyphData.emplace_back(rgb);
+    }
+  }
+
+  D3D11_SUBRESOURCE_DATA glyphTexData{};
+  glyphTexData.pSysMem     = glyphData.data();
+  glyphTexData.SysMemPitch = sizeof(u32) * msdf.width();
+
+  dx::ThrowIfFailed(
+    ctx.device->CreateTexture2D(&msdfTexDesc, &glyphTexData, msdfTex.GetAddressOf()));
 
   D3D11_SHADER_RESOURCE_VIEW_DESC quadViewDesc = {
     .Format        = msdfTexDesc.Format,
