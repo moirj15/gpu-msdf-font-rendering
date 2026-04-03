@@ -27,7 +27,7 @@ int main(int argc, char **argv)
         edgeColoringSimple(shape, 3.0);
         //          output width, height
         //                            scale, translation (in em's)
-        SDFTransformation t(Projection(32.0, Vector2(0.125, 0.125)), Range(0.125));
+        SDFTransformation t(Projection(32, Vector2(0.125, 0.125)), Range(0.125));
         generateMSDF(msdf, shape, t);
         savePng(msdf, "output.png");
       }
@@ -73,16 +73,16 @@ int main(int argc, char **argv)
   };
 
   // BitmapRef<float, 3> msdfData = msdf;
-  std::vector<u32> glyphData;
-  for (u32 y = 0; y < msdf.height(); y++)
+  std::vector<u32>         glyphData;
+  BitmapConstRef<float, 3> msdfRef = msdf;
+  for (u32 y = 0; y < msdfRef.height; y++)
   {
-    for (u32 x = 0; x < msdf.width(); x++)
+    for (u32 x = 0; x < msdfRef.width; x++)
     {
-      std::span rgbF32 = {msdf(x, y), 3};
-      u32       rgb    = 0xff;
-      rgb |= static_cast<u32>(rgbF32[0] * 255) << 24;
-      rgb |= static_cast<u32>(rgbF32[1] * 255) << 16;
-      rgb |= static_cast<u32>(rgbF32[2] * 255) << 8;
+      u32 rgb = 0xff << 24;
+      rgb |= static_cast<u8>(~static_cast<i32>(255.5f - 255.f * clamp(msdfRef(x, y)[2]))) << 16;
+      rgb |= static_cast<u8>(~static_cast<i32>(255.5f - 255.f * clamp(msdfRef(x, y)[1]))) << 8;
+      rgb |= static_cast<u8>(~static_cast<i32>(255.5f - 255.f * clamp(msdfRef(x, y)[0]))) << 0;
       glyphData.emplace_back(rgb);
     }
   }

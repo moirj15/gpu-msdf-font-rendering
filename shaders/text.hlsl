@@ -53,9 +53,9 @@ float2 sqr(float2 x)
 
 float screenPxRange(float2 texCoord)
 {
-  uint2 texSize = 0;
+  uint2 texSize = uint2(32, 32);
   uint mipCount = 0;
-  msdf.GetDimensions(0, texSize.x, texSize.y, mipCount);
+  //msdf.GetDimensions(0, texSize.x, texSize.y, mipCount);
   //float2 unitRange = float2(pxRange, pxRange) / float2(texSize);
   float2 unitRange = pxRange / float2(texSize);
     // If inversesqrt is not available, use vec2(1.0)/sqrt
@@ -72,7 +72,7 @@ float median(float r, float g, float b)
 float4 PSMain(VSOut vsOut) : SV_Target
 {
   float3 msd = msdf.Sample(samp, vsOut.texCoord).rgb;
-  float sd = median(msd.r, msd.g, msd.b);
+  float sd = median(msd.r, msd.g, msd.b) ;
   float screenPxDistance = screenPxRange(vsOut.texCoord) * (sd - 0.5);
   float opacity = clamp(screenPxDistance + 0.5, 0.0, 1.0);
   return lerp(bgColor, fgColor, opacity);
