@@ -18,7 +18,7 @@ CompileShader(const std::string &path, const char *entry_point, const char *shad
   ComPtr<ID3DBlob> errors;
 
 #ifdef DEBUG
-  const u32 flags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
+  const u32 flags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION | D3DCOMPILE_ENABLE_STRICTNESS;
 #else
   const u32 flags = 0;
 #endif

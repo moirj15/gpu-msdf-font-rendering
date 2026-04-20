@@ -11,10 +11,18 @@
 constexpr u32 WIDTH  = 1920;
 constexpr u32 HEIGHT = 1080;
 
+struct LinearBezier
+{
+  u32       color;
+  glm::vec2 p0;
+  glm::vec2 p1;
+};
+
 using namespace msdfgen;
 int main(int argc, char **argv)
 {
-  Bitmap<float, 3> msdf(32, 32);
+  std::vector<LinearBezier> linearSegments;
+  Bitmap<float, 3>          msdf(32, 32);
   if (FreetypeHandle *ft = initializeFreetype())
   {
     if (FontHandle *font = loadFont(ft, "C:\\Windows\\Fonts\\arialbd.ttf"))
@@ -31,6 +39,31 @@ int main(int argc, char **argv)
         generateMSDF(msdf, shape, t);
         savePng(msdf, "output.png");
       }
+
+      glm::vec3 color{};
+      for (auto &c : shape.contours)
+      {
+        if (c.edges.size() == 1)
+          color = {1.0, 1.0, 1.0};
+        else
+          color = {1.0, 0.0, 1.0};
+        for (auto &e : c.edges)
+        {
+          if (e->type() == msdfgen::LinearSegment::EDGE_TYPE)
+          {
+            auto *edge = static_cast<msdfgen::LinearSegment *>(&(*e));
+            linearSegments.push_back(LinearBezier{
+              glm::packUnorm4x8(glm::vec4{color, 1.0}),
+              glm::vec2{edge->p[0].x, edge->p[0].y},
+              glm::vec2{edge->p[1].x, edge->p[1].y}});
+          }
+          if (color == glm::vec3{1.0, 1.0, 0.0})
+            color = {0, 1, 1};
+          else
+            color = {1, 1, 0};
+        }
+      }
+
       destroyFont(font);
     }
     deinitializeFreetype(ft);
@@ -48,6 +81,8 @@ int main(int argc, char **argv)
 
   RenderProgramHandle textRenderProgram =
     shaderWatcher.RegisterShader("shaders/text.hlsl", "shaders/text.hlsl");
+
+  auto msdfGenCS = shaderWatcher.RegisterShader("shaders/msdf_gen.hlsl");
   // ComputeProgramHandle msdfGenProgram = shaderWatcher.RegisterShader("shaders/msdf_gen.hlsl");
 
   ComPtr<ID3D11Texture2D>          msdfTex;
@@ -71,6 +106,42 @@ int main(int argc, char **argv)
     .CPUAccessFlags = 0,
     .MiscFlags      = 0,
   };
+
+  D3D11_TEXTURE2D_DESC gpuMsdfTexDesc = {
+    .Width     = static_cast<u32>(msdf.width()),
+    .Height    = static_cast<u32>(msdf.height()),
+    .MipLevels = 1,
+    .ArraySize = 1,
+    //.Format    = DXGI_FORMAT_R32G32B32A32_FLOAT,
+    .Format = DXGI_FORMAT_R8G8B8A8_UNORM,
+    // Multi sampling here
+    .SampleDesc =
+      {
+        .Count   = 1,
+        .Quality = 0,
+      },
+    .Usage          = D3D11_USAGE_DEFAULT,
+    .BindFlags      = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS,
+    .CPUAccessFlags = 0,
+    .MiscFlags      = 0,
+  };
+
+  ComPtr<ID3D11Texture2D> gpuMsdfTex;
+  dx::ThrowIfFailed(
+    ctx.device->CreateTexture2D(&gpuMsdfTexDesc, nullptr, gpuMsdfTex.GetAddressOf()));
+
+  ComPtr<ID3D11UnorderedAccessView> msdfCSView;
+  dx::ThrowIfFailed(
+    ctx.device->CreateUnorderedAccessView(gpuMsdfTex.Get(), nullptr, msdfCSView.GetAddressOf()));
+
+  ComPtr<ID3D11ShaderResourceView> gpuMsdfView;
+  dx::ThrowIfFailed(
+    ctx.device->CreateShaderResourceView(gpuMsdfTex.Get(), nullptr, gpuMsdfView.GetAddressOf()));
+
+  auto linearBuf = dx::CreateVertexBuffer<LinearBezier>(
+    ctx.device.Get(),
+    linearSegments.size(),
+    {linearSegments.begin(), linearSegments.end()});
 
   // BitmapRef<float, 3> msdfData = msdf;
   std::vector<u32>         glyphData;
@@ -123,8 +194,18 @@ int main(int argc, char **argv)
     ctx.context->ClearRenderTargetView(ctx.backbufferRTV.Get(), clearColor);
     ctx.context->ClearDepthStencilView(ctx.depthStencilView.Get(), D3D11_CLEAR_DEPTH, 1.0, 0);
 
+    {
+      ctx.DeviceContext()->CSSetShader(shaderWatcher.GetComputeProgram(msdfGenCS), nullptr, 0);
+      ctx.DeviceContext()->CSSetUnorderedAccessViews(0, 1, msdfCSView.GetAddressOf(), nullptr);
+      ctx.DeviceContext()->CSSetShaderResources(0, 1, linearBuf.view.GetAddressOf());
+      ctx.DeviceContext()->Dispatch(4, 4, 1);
+      ID3D11UnorderedAccessView *v[] = {nullptr};
+      ctx.DeviceContext()->CSSetUnorderedAccessViews(0, 1, v, nullptr);
+    }
+
     RenderProgram rp = shaderWatcher.GetRenderProgram(textRenderProgram);
 
+    // ctx.context->ClearState();
     ctx.context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     // u32 stride = sizeof(ModelVertex);
     // u32 offset = 0;
@@ -136,7 +217,8 @@ int main(int argc, char **argv)
     ctx.context->RSSetState(ctx.rasterizerState.Get());
 
     ctx.context->PSSetShader(rp.pixelShader, nullptr, 0);
-    ctx.context->PSSetShaderResources(0, 1, msdfView.GetAddressOf());
+    // ctx.context->PSSetShaderResources(0, 1, msdfView.GetAddressOf());
+    ctx.context->PSSetShaderResources(0, 1, gpuMsdfView.GetAddressOf());
     ctx.context->PSSetSamplers(0, 1, msdfSampler.GetAddressOf());
     ctx.context->OMSetRenderTargets(
       1,
@@ -145,8 +227,10 @@ int main(int argc, char **argv)
     // ctx.context->VSSetConstantBuffers(1, 1, mModelConstants[i].GetAddressOf());
     // ctx.context->DrawIndexed(draw.indexCount, draw.startIndex, draw.baseVertex);
     ctx.context->Draw(6, 0);
+    ID3D11ShaderResourceView *srv = nullptr;
+    ctx.context->PSSetShaderResources(0, 1, &srv);
 
-    dx::ThrowIfFailed(ctx.swapchain->Present(1, 0));
+    ctx.swapchain->Present(1, 0);
   }
 
   return 0;
