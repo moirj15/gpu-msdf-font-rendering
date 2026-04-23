@@ -39,6 +39,24 @@ int main(int argc, char **argv)
         generateMSDF(msdf, shape, t);
         savePng(msdf, "output.png");
       }
+      // BLACK = 0,
+      // RED = 1,
+      // GREEN = 2,
+      // YELLOW = 3,
+      // BLUE = 4,
+      // MAGENTA = 5,
+      // CYAN = 6,
+      // WHITE = 7
+
+      glm::vec3 colors[] = {
+        {0, 0, 0},
+        {1, 0, 0},
+        {0, 1, 0},
+        {1, 1, 0},
+        {0, 0, 1},
+        {0, 1, 1},
+        {1, 1, 1},
+      };
 
       glm::vec3 color{};
       for (auto &c : shape.contours)
@@ -52,10 +70,11 @@ int main(int argc, char **argv)
           if (e->type() == msdfgen::LinearSegment::EDGE_TYPE)
           {
             auto *edge = static_cast<msdfgen::LinearSegment *>(&(*e));
-            linearSegments.push_back(LinearBezier{
-              glm::packUnorm4x8(glm::vec4{color, 1.0}),
-              glm::vec2{edge->p[0].x, edge->p[0].y},
-              glm::vec2{edge->p[1].x, edge->p[1].y}});
+            linearSegments.push_back(
+              LinearBezier{// glm::packUnorm4x8(glm::vec4{color, 1.0}),
+                           glm::packUnorm4x8(glm::vec4{colors[edge->color], 1.0}),
+                           glm::vec2{edge->p[0].x, edge->p[0].y},
+                           glm::vec2{edge->p[1].x, edge->p[1].y}});
           }
           if (color == glm::vec3{1.0, 1.0, 0.0})
             color = {0, 1, 1};
@@ -217,8 +236,11 @@ int main(int argc, char **argv)
     ctx.context->RSSetState(ctx.rasterizerState.Get());
 
     ctx.context->PSSetShader(rp.pixelShader, nullptr, 0);
-    // ctx.context->PSSetShaderResources(0, 1, msdfView.GetAddressOf());
+#if 0
+    ctx.context->PSSetShaderResources(0, 1, msdfView.GetAddressOf());
+#else
     ctx.context->PSSetShaderResources(0, 1, gpuMsdfView.GetAddressOf());
+#endif
     ctx.context->PSSetSamplers(0, 1, msdfSampler.GetAddressOf());
     ctx.context->OMSetRenderTargets(
       1,

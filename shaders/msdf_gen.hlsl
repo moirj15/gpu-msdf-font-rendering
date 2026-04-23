@@ -36,28 +36,40 @@ struct EdgeColors
 
 bool CMP(float d, float distance)
 {
-  return d < distance;
+  return abs(d) < abs(distance);
+  //return d < distance;
+
 }
 
-void UpdateDistances(float d, float3 edgeColor, inout float3 distances,
-    out EdgeColors outEdgeColors)
+void UpdateDistances(float d, float3 edgeColor, inout float3 distances //,
+    /*out EdgeColors outEdgeColors*/)
 {
-  outEdgeColors = (EdgeColors) 0;
+  //outEdgeColors = (EdgeColors) 0;
+	/*
+	if (abs(d) < abs(distances.r)) {
+		//closest = d;
+		distances = d.rrr; //(float)i / 32.0;
+	}*/
+
+  
+///*
   if (edgeColor.r != 0 && CMP(d, distances.r))
   {
     distances.r = d;
-    outEdgeColors.red = edgeColor;
+    //outEdgeColors.red = edgeColor;
   }
+
   if (edgeColor.g != 0 && CMP(d, distances.g))
   {
     distances.g = d;
-    outEdgeColors.green = edgeColor;
+    //outEdgeColors.green = edgeColor;
   }
   if (edgeColor.b != 0 && CMP(d, distances.b))
   {
     distances.b = d;
-    outEdgeColors.blue = edgeColor;
+    //outEdgeColors.blue = edgeColor;
   }
+//*/
 }
 
 float3 UnpackColor(uint c)
@@ -93,6 +105,21 @@ float LinearEdgeSignedDistance(float2 P, LinearBezier edge)
   {
     segment = edge.p0 - P;
   }
+
+	//return sgn * length(segment);
+  float2 ab = edge.p1 - edge.p0;
+  float2 ap = P - edge.p0;
+
+  float tt = saturate(dot(ap, ab) / dot(ab, ab));
+	//if (tt == 0.0) tt = 1.0;
+  float2 cp = edge.p0 + t * ab;
+	
+  float dist = distance(P, cp);
+  float det = ab.x * ap.y - ab.y * ap.x;
+	//float det = dot(ab, ap);
+  float s = (det >= 0.0) ? 1.0 : -1.0;
+  return dist * s;
+
   return sgn * length(segment);
 }
 
@@ -315,7 +342,7 @@ void GetFinalValues(
 {
   float inf = 1.0f / 0.0f;
   finalDistances = float3(inf, inf, inf);
-  finalColors = (EdgeColors)0;
+  finalColors = (EdgeColors) 0;
 
   if (CMP(linearDistances.r, finalDistances.r))
   {
@@ -368,7 +395,7 @@ void GetFinalValues(
 
 float3 GeneratePixelGPU(float2 P)
 {
-  float3 linearDistances = { 0, 0, 0 };
+  float3 linearDistances = { 1000.0, 1000.0, 1000.0 };
   EdgeColors linearEdgeColors = (EdgeColors) 0;
   float3 quadraticDistances = { 0, 0, 0 };
   EdgeColors quadraticEdgeColors = (EdgeColors) 0;
@@ -382,16 +409,26 @@ float3 GeneratePixelGPU(float2 P)
   linearEdges.GetDimensions(linearEdgesSize, stride);
   quadraticEdges.GetDimensions(quadraticEdgesSize, stride);
   cubicEdges.GetDimensions(cubicEdgesSize, stride);
-
+  float closest = 1000.0;
   for (uint i = 0; i < linearEdgesSize; i++)
   {
     LinearBezier edge = linearEdges[i];
     float3 edgeColor = UnpackColor(edge.color);
     float d = LinearEdgeSignedDistance(P, edge);
-    UpdateDistances(d, edgeColor, linearDistances, linearEdgeColors);
-    edge.color = PackColor(edgeColor);
+    /*
+	if (abs(d) < abs(closest)) {
+		closest = d;
+		linearDistances = closest;//(float)i / 32.0;
+	}*/
+    UpdateDistances(d, edgeColor, linearDistances /*, linearEdgeColors*/);
+    //linearDistances = min(d, linearDistances.r).rrr;
+    //edge.color = PackColor(edgeColor);
+    //if (i == 0)
+    //  return linearDistances;
   }
+  return linearDistances * 8.0;
 
+#if 0
   for (uint j = 0; j < quadraticEdgesSize; j++)
   {
     QuadraticBezier edge = quadraticEdges[j];
@@ -409,6 +446,7 @@ float3 GeneratePixelGPU(float2 P)
     UpdateDistances(d, edgeColor, cubicDistances, cubicEdgeColors);
     edge.color = PackColor(edgeColor);
   }
+#endif
 
   float3 finalDistances = float3(0, 0, 0);
   EdgeColors finalColors;
@@ -428,11 +466,26 @@ float3 GeneratePixelGPU(float2 P)
 
 RWTexture2D<float4> output;
 
+static const float2 pxRange = { 1920.0 / 32.0, 1080.0 / 32.0 };
 
 [numthreads(8, 8, 1)]
 void CSMain(uint3 threadID : SV_DispatchThreadID)
 {
-  float2 P = 0.125 + ((threadID.xy + 0.5) / 32.0) * 1.0;
+  float2 P = -0.125 + ((threadID.xy /*+ 0.5*/) / 32.0) * 1.0;
   //output[threadID.xy] = float4(GeneratePixelGPU(threadID.xy / float2(32, 32)) / float3(32, 32, 32) + 0.5, 1.0);
-  output[threadID.xy] = float4(GeneratePixelGPU(P), 1.0);
+  //output[threadID.xy] = float4(GeneratePixelGPU(P), 1.0);
+  float3 c = GeneratePixelGPU(P);
+
+  float ur = 4 * (1.0 / 32.0);
+  //output[threadID.xy] = float4(c / ur + 0.5, 1.0);
+  output[threadID.xy] = float4(c, 1.0);
+  
+  uint linearEdgesSize = 0;
+  uint stride = 0;
+  linearEdges.GetDimensions(linearEdgesSize, stride);
+  for (uint i = 0; i < linearEdgesSize; i++)
+  {
+    //output[linearEdges[i].p0 * 32.0 + 0.125] = float4(1.0, 0.0, 0.0, 1.0);
+  }
+
 }
