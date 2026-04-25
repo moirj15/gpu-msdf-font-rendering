@@ -3,6 +3,7 @@
 #include "utils.hpp"
 
 #include <SDL2/SDL.h>
+#include <array>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <msdfgen-ext.h>
@@ -18,17 +19,36 @@ struct LinearBezier
   glm::vec2 p1;
 };
 
+struct QuadraticBezier
+{
+  u32       color;
+  glm::vec2 p0;
+  glm::vec2 p1;
+  glm::vec2 p2;
+};
+
+struct CubicBezier
+{
+  u32       color;
+  glm::vec2 p0;
+  glm::vec2 p1;
+  glm::vec2 p2;
+  glm::vec2 p3;
+};
+
 using namespace msdfgen;
 int main(int argc, char **argv)
 {
-  std::vector<LinearBezier> linearSegments;
-  Bitmap<float, 3>          msdf(32, 32);
+  std::vector<LinearBezier>    linearSegments;
+  std::vector<QuadraticBezier> quadraticSegments;
+  std::vector<CubicBezier>     cubicSegments;
+  Bitmap<float, 3>             msdf(32, 32);
   if (FreetypeHandle *ft = initializeFreetype())
   {
     if (FontHandle *font = loadFont(ft, "C:\\Windows\\Fonts\\arialbd.ttf"))
     {
       Shape shape;
-      if (loadGlyph(shape, font, 'A', FONT_SCALING_EM_NORMALIZED))
+      if (loadGlyph(shape, font, 'B', FONT_SCALING_EM_NORMALIZED))
       {
         shape.normalize();
         //                      max. angle
@@ -71,11 +91,33 @@ int main(int argc, char **argv)
           if (e->type() == msdfgen::LinearSegment::EDGE_TYPE)
           {
             auto *edge = static_cast<msdfgen::LinearSegment *>(&(*e));
-            linearSegments.push_back(
-              LinearBezier{// glm::packUnorm4x8(glm::vec4{color, 1.0}),
-                           glm::packUnorm4x8(glm::vec4{colors[edge->color], 1.0}),
-                           glm::vec2{edge->p[0].x, edge->p[0].y},
-                           glm::vec2{edge->p[1].x, edge->p[1].y}});
+            linearSegments.push_back(LinearBezier{
+              // glm::packUnorm4x8(glm::vec4{color, 1.0}),
+              glm::packUnorm4x8(glm::vec4{colors[edge->color], 1.0}),
+              glm::vec2{edge->p[0].x, edge->p[0].y},
+              glm::vec2{edge->p[1].x, edge->p[1].y},
+            });
+          }
+          else if (e->type() == msdfgen::QuadraticSegment::EDGE_TYPE)
+          {
+            auto *edge = static_cast<msdfgen::QuadraticSegment *>(&(*e));
+            quadraticSegments.push_back({
+              glm::packUnorm4x8(glm::vec4{colors[edge->color], 1.0}),
+              glm::vec2{edge->p[0].x, edge->p[0].y},
+              glm::vec2{edge->p[1].x, edge->p[1].y},
+              glm::vec2{edge->p[2].x, edge->p[2].y},
+            });
+          }
+          else if (e->type() == msdfgen::CubicSegment::EDGE_TYPE)
+          {
+            auto *edge = static_cast<msdfgen::CubicSegment *>(&(*e));
+            cubicSegments.push_back({
+              glm::packUnorm4x8(glm::vec4{colors[edge->color], 1.0}),
+              glm::vec2{edge->p[0].x, edge->p[0].y},
+              glm::vec2{edge->p[1].x, edge->p[1].y},
+              glm::vec2{edge->p[2].x, edge->p[2].y},
+              glm::vec2{edge->p[3].x, edge->p[3].y},
+            });
           }
           if (color == glm::vec3{1.0, 1.0, 0.0})
             color = {0, 1, 1};
@@ -166,6 +208,16 @@ int main(int argc, char **argv)
     linearSegments.size(),
     {linearSegments.begin(), linearSegments.end()});
 
+  auto quadraticBuf = dx::CreateVertexBuffer<QuadraticBezier>(
+    ctx.device.Get(),
+    quadraticSegments.size(),
+    {quadraticSegments.begin(), quadraticSegments.end()});
+
+  auto cubicBuf = dx::CreateVertexBuffer<CubicBezier>(
+    ctx.device.Get(),
+    cubicSegments.size(),
+    {cubicSegments.begin(), cubicSegments.end()});
+
   // BitmapRef<float, 3> msdfData = msdf;
   std::vector<u32>         glyphData;
   BitmapConstRef<float, 3> msdfRef = msdf;
@@ -220,7 +272,12 @@ int main(int argc, char **argv)
     {
       ctx.DeviceContext()->CSSetShader(shaderWatcher.GetComputeProgram(msdfGenCS), nullptr, 0);
       ctx.DeviceContext()->CSSetUnorderedAccessViews(0, 1, msdfCSView.GetAddressOf(), nullptr);
-      ctx.DeviceContext()->CSSetShaderResources(0, 1, linearBuf.view.GetAddressOf());
+      std::array resources = {
+        linearBuf.view.Get(),
+        quadraticBuf.view.Get(),
+        cubicBuf.view.Get(),
+      };
+      ctx.DeviceContext()->CSSetShaderResources(0, 3, resources.data());
       ctx.DeviceContext()->Dispatch(4, 4, 1);
       ID3D11UnorderedAccessView *v[] = {nullptr};
       ctx.DeviceContext()->CSSetUnorderedAccessViews(0, 1, v, nullptr);

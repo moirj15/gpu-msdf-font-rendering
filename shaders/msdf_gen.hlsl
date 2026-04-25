@@ -516,9 +516,9 @@ float3 GeneratePixelGPU(float2 P)
 	//return abs(nearestNegative) * 8.0;
 //float PseudoDistance(float2 P, float2 a, float2 b, float t, float dist)
 
-  linearDistances.r = PseudoDistance(P, closestEdges[0].p0, closestEdges[0].p1, t, linearDistances.r);
-  linearDistances.g = PseudoDistance(P, closestEdges[1].p0, closestEdges[1].p1, t, linearDistances.g);
-  linearDistances.b = PseudoDistance(P, closestEdges[2].p0, closestEdges[2].p1, t, linearDistances.b);
+  //linearDistances.r = PseudoDistance(P, closestEdges[0].p0, closestEdges[0].p1, t, linearDistances.r);
+  //linearDistances.g = PseudoDistance(P, closestEdges[1].p0, closestEdges[1].p1, t, linearDistances.g);
+  //linearDistances.b = PseudoDistance(P, closestEdges[2].p0, closestEdges[2].p1, t, linearDistances.b);
   //return t;
   return (linearDistances.rgb) * 8.0;
 

@@ -114,6 +114,10 @@ struct VertexBuffer
 template<typename T>
 VertexBuffer CreateVertexBuffer(ID3D11Device3 *device, u32 count, std::span<const T> data)
 {
+  if (count == 0)
+  {
+    return {nullptr, nullptr};
+  }
   D3D11_BUFFER_DESC desc = {
     .ByteWidth           = count * GpuSizeof<T>(),
     .Usage               = D3D11_USAGE_DYNAMIC,
