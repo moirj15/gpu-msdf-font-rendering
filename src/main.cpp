@@ -57,6 +57,7 @@ int main(int argc, char **argv)
         {0, 1, 1},
         {1, 1, 1},
       };
+      // shape.orientContours();
 
       glm::vec3 color{};
       for (auto &c : shape.contours)
@@ -87,6 +88,9 @@ int main(int argc, char **argv)
     }
     deinitializeFreetype(ft);
   }
+  // std::sort(linearSegments.begin(), linearSegments.end(), [](auto &a, auto &b) {
+  //   return glm::all(glm::lessThan(a.p0, b.p0));
+  // });
   const dx::Window window = dx::CreateWin(WIDTH, HEIGHT, "win");
 
   dx::RenderContext ctx = dx::InitContext(window);
@@ -131,8 +135,8 @@ int main(int argc, char **argv)
     .Height    = static_cast<u32>(msdf.height()),
     .MipLevels = 1,
     .ArraySize = 1,
-    //.Format    = DXGI_FORMAT_R32G32B32A32_FLOAT,
-    .Format = DXGI_FORMAT_R8G8B8A8_UNORM,
+    .Format    = DXGI_FORMAT_R32G32B32A32_FLOAT,
+    //.Format = DXGI_FORMAT_R8G8B8A8_UNORM,
     // Multi sampling here
     .SampleDesc =
       {
