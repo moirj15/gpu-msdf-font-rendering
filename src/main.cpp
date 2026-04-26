@@ -48,7 +48,7 @@ int main(int argc, char **argv)
     if (FontHandle *font = loadFont(ft, "C:\\Windows\\Fonts\\arialbd.ttf"))
     {
       Shape shape;
-      if (loadGlyph(shape, font, 'B', FONT_SCALING_EM_NORMALIZED))
+      if (loadGlyph(shape, font, 'C', FONT_SCALING_EM_NORMALIZED))
       {
         shape.normalize();
         //                      max. angle
@@ -77,7 +77,7 @@ int main(int argc, char **argv)
         {0, 1, 1},
         {1, 1, 1},
       };
-      // shape.orientContours();
+      shape.orientContours();
 
       glm::vec3 color{};
       for (auto &c : shape.contours)
@@ -86,6 +86,10 @@ int main(int argc, char **argv)
           color = {1.0, 1.0, 1.0};
         else
           color = {1.0, 0.0, 1.0};
+        // if (c.winding() > 0)
+        //{
+        //   c.reverse();
+        // }
         for (auto &e : c.edges)
         {
           if (e->type() == msdfgen::LinearSegment::EDGE_TYPE)
@@ -100,6 +104,7 @@ int main(int argc, char **argv)
           }
           else if (e->type() == msdfgen::QuadraticSegment::EDGE_TYPE)
           {
+            e->reverse();
             auto *edge = static_cast<msdfgen::QuadraticSegment *>(&(*e));
             quadraticSegments.push_back({
               glm::packUnorm4x8(glm::vec4{colors[edge->color], 1.0}),
