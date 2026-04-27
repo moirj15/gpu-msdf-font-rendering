@@ -23,9 +23,25 @@ struct CubicBezier
   float2 p3;
 };
 
-StructuredBuffer<LinearBezier> linearEdges : register(t0);
-StructuredBuffer<QuadraticBezier> quadraticEdges : register(t1);
-StructuredBuffer<CubicBezier> cubicEdges : register(t2);
+static const uint LINEAR_BEZIER = 0;
+static const uint QUADRATIC_BEZIER = 1;
+static const uint CUBIC_BEZIER = 2;
+
+struct Bezier
+{
+  uint color;
+  uint type;
+  float2 p0;
+  float2 p1;
+  float2 p2;
+  float2 p3;
+};
+
+//StructuredBuffer<LinearBezier> linearEdges : register(t0);
+//StructuredBuffer<QuadraticBezier> quadraticEdges : register(t1);
+//StructuredBuffer<CubicBezier> cubicEdges : register(t2);
+
+StructuredBuffer<Bezier> edges : register(t0);
 
 struct EdgeColors
 {
@@ -34,16 +50,31 @@ struct EdgeColors
   float3 blue;
 };
 
-bool CMP(float d, float distance)
+float CMP(float d, float distance, float t, float2 P, Bezier e)
 {
-#if 1 
+#if 0
   //bool r = false;
-  if (abs(d) == abs(distance) && sign(d) > 0.0)
-    return true;
-			
-  return abs(d) < abs(distance);
+  //if (abs(d) == abs(distance) && d > 0.0)
+  //  return true;
+  if (abs(d) == abs(distance))
+  {
+    float2 ep = lerp(e.p0, e.p1, t);
+    float ed = length(P - ep);
+    return ed;
+  }
+  else if (abs(d) < abs(distance))
+  {
+    return d;
+  }
+  else
+  {
+    return distance;
+  }
 #else
-	return abs(d) < abs(distance);
+  if (abs(d) == abs(distance) && d > 0.0)
+    return d;
+  return abs(d) < abs(distance) ? d : distance;
+	//return abs(d) < abs(distance);
 	//return abs(d) - abs(distance) < 0.0;
 #endif
 }
@@ -60,7 +91,7 @@ float PseudoDistance(float2 P, float2 a, float2 b, float t, float dist)
 }
 
 void UpdateDistances(float d, float3 edgeColor, inout float3 distances, float t /*, LinearBezier e*/, float2 P,
-    out LinearBezier closestEdge[3])
+    Bezier e)
 {
   //outEdgeColors = (EdgeColors) 0;
 	/*
@@ -70,71 +101,33 @@ void UpdateDistances(float d, float3 edgeColor, inout float3 distances, float t 
 	}*/
   //float pseudoDist = PseudoDistance(P, e.p0, e.p1, t, d);
   
-  if (edgeColor.r != 0 && CMP(d, distances.r))
+  if (edgeColor.r != 0)
   {
-    distances.r = d;
+    distances.r = CMP(d, distances.r, t, P, e);
     //closestEdge[0] = e;
     //distances.r = pseudoDist;
 
     //outEdgeColors.red = edgeColor;
   }
 
-  if (edgeColor.g != 0 && CMP(d, distances.g))
+  if (edgeColor.g != 0)
   {
-    distances.g = d;
+    distances.g = CMP(d, distances.g, t, P, e);
 
     //closestEdge[1] = e;
     //distances.g = pseudoDist;
 
     //outEdgeColors.green = edgeColor;
   }
-  if (edgeColor.b != 0 && CMP(d, distances.b))
+  if (edgeColor.b != 0)
   {
-    distances.b = d;
+    distances.b = CMP(d, distances.g, t, P, e);
 
     //closestEdge[2] = e;
     //distances.b = pseudoDist;
 
     //outEdgeColors.blue = edgeColor;
   }
-}
-
-bool NegCMP(float d, float distance)
-{
-  return abs(d) < abs(distance);
-  //return d < distance;
-	//return abs(d) - abs(distance) < 0.0;
-}
-
-void UpdateDistancesNegative(float d, float3 edgeColor, inout float3 negativeDistances //,
-    /*out EdgeColors outEdgeColors*/)
-{
-  //outEdgeColors = (EdgeColors) 0;
-	/*
-	if (abs(d) < abs(distances.r)) {
-		//closest = d;
-		distances = d.rrr; //(float)i / 32.0;
-	}*/
-
-  
-///*
-  if (edgeColor.r != 0 && NegCMP(d, negativeDistances.r))
-  {
-    negativeDistances.r = d;
-    //outEdgeColors.red = edgeColor;
-  }
-
-  if (edgeColor.g != 0 && NegCMP(d, negativeDistances.g))
-  {
-    negativeDistances.g = d;
-    //outEdgeColors.green = edgeColor;
-  }
-  if (edgeColor.b != 0 && NegCMP(d, negativeDistances.b))
-  {
-    negativeDistances.b = d;
-    //outEdgeColors.blue = edgeColor;
-  }
-//*/
 }
 
 float3 UnpackColor(uint c)
@@ -157,6 +150,7 @@ float cross2D(float2 a, float2 b)
 
 float LinearEdgeSignedDistance(float2 P, LinearBezier edge, out float t)
 {
+#if 0
   float2 sgnFirstTerm = P - edge.p0;
   float2 sgnSecondTerm = edge.p1 - edge.p0;
   float sgn = sign(cross2D(sgnFirstTerm, sgnSecondTerm));
@@ -170,6 +164,7 @@ float LinearEdgeSignedDistance(float2 P, LinearBezier edge, out float t)
   {
     segment = edge.p0 - P;
   }
+#endif
 
 	//return sgn * length(segment);
 
@@ -194,7 +189,7 @@ float LinearEdgeSignedDistance(float2 P, LinearBezier edge, out float t)
 	float s = det >= 0 ? d : -d;
 	return s;
 #endif  
-  return sgn * length(segment);
+  //return sgn * length(segment);
 }
 
 // Ported from the msdfgen library
@@ -286,7 +281,7 @@ float2 QuadraticDirection(float param, QuadraticBezier e)
   return tangent;
 }
 
-float QuadraticEdgeSignedDistance(float2 P, QuadraticBezier edge)
+float QuadraticEdgeSignedDistance(float2 P, QuadraticBezier edge, out float tOut)
 {
   float2 qa = edge.p0 - P;
   float2 ab = edge.p1 - edge.p0;
@@ -328,6 +323,7 @@ float QuadraticEdgeSignedDistance(float2 P, QuadraticBezier edge)
   //  return SignedDistance(minDistance, abs(dot(direction(0).normalize(), qa.normalize())));
   //else
   //  return SignedDistance(minDistance, abs(dot(direction(1).normalize(), (p[2] - P).normalize())));
+  tOut = param;
   return minDistance;
 }
 
@@ -347,7 +343,7 @@ float2 CubicDirection(float param, CubicBezier e)
 #define MSDFGEN_CUBIC_SEARCH_STARTS 4
 #define MSDFGEN_CUBIC_SEARCH_STEPS 4
 
-float CubicEdgeSignedDistance(float2 P, CubicBezier e)
+float CubicEdgeSignedDistance(float2 P, CubicBezier e, out float tOut)
 {
   float2 qa = e.p0 - P;
   float2 ab = e.p1 - e.p0;
@@ -369,7 +365,7 @@ float CubicEdgeSignedDistance(float2 P, CubicBezier e)
     // Iterative minimum distance search
   for (int i = 0; i <= MSDFGEN_CUBIC_SEARCH_STARTS; ++i)
   {
-    float t = 1. / MSDFGEN_CUBIC_SEARCH_STARTS * i;
+    float t = 1.0 / MSDFGEN_CUBIC_SEARCH_STARTS * i;
     float2 qe = qa + 3 * t * ab + 3 * t * t * br + t * t * t * as;
     float2 d1 = 3 * ab + 6 * t * br + 3 * t * t * as;
     float2 d2 = 6 * br + 6 * t * as;
@@ -396,6 +392,7 @@ float CubicEdgeSignedDistance(float2 P, CubicBezier e)
     }
   }
 
+  tOut = param;
   return minDistance;
   //if (param >= 0 && param <= 1)
   //  return SignedDistance(minDistance, 0);
@@ -406,193 +403,104 @@ float CubicEdgeSignedDistance(float2 P, CubicBezier e)
 }
 
 
-void GetFinalValues(
-    float3 linearDistances,
-    float3 quadraticDistances,
-    float3 cubicDistances,
-    out float3 finalDistances)
-{
-  finalDistances = float3(1000.0, 1000.0, 1000.0);
-
-  if (CMP(linearDistances.r, finalDistances.r))
-  {
-    finalDistances.r = linearDistances.r;
-  }
-  if (CMP(linearDistances.g, finalDistances.g))
-  {
-    finalDistances.g = linearDistances.g;
-  }
-  if (CMP(linearDistances.b, finalDistances.b))
-  {
-    finalDistances.b = linearDistances.b;
-  }
-
-  if (CMP(quadraticDistances.r, finalDistances.r))
-  {
-    finalDistances.r = quadraticDistances.r;
-  }
-  if (CMP(quadraticDistances.g, finalDistances.g))
-  {
-    finalDistances.g = quadraticDistances.g;
-  }
-  if (CMP(quadraticDistances.b, finalDistances.b))
-  {
-    finalDistances.b = quadraticDistances.b;
-  }
-  
-  if (CMP(cubicDistances.r, finalDistances.r))
-  {
-    finalDistances.r = cubicDistances.r;
-  }
-  if (CMP(cubicDistances.g, finalDistances.g))
-  {
-    finalDistances.g = cubicDistances.g;
-  }
-  if (CMP(cubicDistances.b, finalDistances.b))
-  {
-    finalDistances.b = cubicDistances.b;
-  }
-}
-
-
 float3 GeneratePixelGPU(float2 P)
 {
-  float3 linearDistances = { 1000.0, 1000.0, 1000.0 };
-  float3 nearestNegative = { -1000.0, -1000.0, -1000.0 };
-  EdgeColors linearEdgeColors = (EdgeColors) 0;
-  float3 quadraticDistances = { 1000.0, 1000.0, 1000.0 };
-  EdgeColors quadraticEdgeColors = (EdgeColors) 0;
-  float3 cubicDistances = { 1000.0, 1000.0, 1000.0 };
-  EdgeColors cubicEdgeColors = (EdgeColors) 0;
-  uint linearEdgesSize = 0;
-  uint quadraticEdgesSize = 0;
-  uint cubicEdgesSize = 0;
   uint stride = 0;
   
   float3 totalDistances = { 1000.0, 1000.0, 1000.0 };
 
+#if 0
   linearEdges.GetDimensions(linearEdgesSize, stride);
   quadraticEdges.GetDimensions(quadraticEdgesSize, stride);
   cubicEdges.GetDimensions(cubicEdgesSize, stride);
+#endif
+
+  uint edgesSize = 0;
+  edges.GetDimensions(edgesSize, stride);
   float closest = 1000.0;
   float t = 0;
   LinearBezier closestEdges[3];
 
   float globalMin = 10000.0;
   float globalSign = 1.0;
-#if 1
-  for (uint i = 0; i < linearEdgesSize; i++)
+
+  for (uint i = 0; i < edgesSize; i++)
   {
-    LinearBezier edge = linearEdges[i];
+    Bezier edge = edges[i];
     float3 edgeColor = UnpackColor(edge.color);
-    float d = LinearEdgeSignedDistance(P, edge, t);
-    /*
-	if (abs(d) < abs(closest)) {
-		closest = d;
-		linearDistances = closest;//(float)i / 32.0;
-	}*/
-	//if (sign(d) > 0.0)
-    UpdateDistances(d, edgeColor, totalDistances, t /*, edge*/, P, closestEdges /*, linearEdgeColors*/);
-    
-    UpdateDistances(d, edgeColor, linearDistances, t /*, edge*/, P, closestEdges /*, linearEdgeColors*/);
-    if (sign(d) < 0.0)
-      UpdateDistancesNegative(d, edgeColor, nearestNegative /*, linearEdgeColors*/);
-
-    //linearDistances = min(d, linearDistances.r).rrr;
-    //edge.color = PackColor(edgeColor);
-    //if (i == 0)
-    //  return linearDistances;
-    if (CMP(d, globalMin))
+    float d;
+    if (edge.type == LINEAR_BEZIER)
     {
-      globalMin = d;
-      globalSign = sign(d);
+      LinearBezier linearEdge;
+      linearEdge.p0 = edge.p0;
+      linearEdge.p1 = edge.p1;
+      d = LinearEdgeSignedDistance(P, linearEdge, t);
+      d += d < 0.0 ? 0.00001 : 0.0;
     }
-  }
-	
-#endif 
-/* 
-  if (abs(linearDistances.x) > abs(nearestNegative.x))
-	linearDistances.x = nearestNegative.x;
-  if (abs(linearDistances.y) > abs(nearestNegative.y))
-	linearDistances.y = nearestNegative.y;
-  if (abs(linearDistances.z) > abs(nearestNegative.z))
-	linearDistances.z = nearestNegative.z;
-*/
-	//return abs(nearestNegative) * 8.0;
-//float PseudoDistance(float2 P, float2 a, float2 b, float t, float dist)
-
-  totalDistances.r = PseudoDistance(P, closestEdges[0].p0, closestEdges[0].p1, t, totalDistances.r);
-  totalDistances.g = PseudoDistance(P, closestEdges[1].p0, closestEdges[1].p1, t, totalDistances.g);
-  totalDistances.b = PseudoDistance(P, closestEdges[2].p0, closestEdges[2].p1, t, totalDistances.b);
-  //return t;
-
-#if 1 
-  for (uint j = 0; j < quadraticEdgesSize; j++)
-  {
-    QuadraticBezier edge = quadraticEdges[j];
-    float3 edgeColor = UnpackColor(edge.color);
-    float d = QuadraticEdgeSignedDistance(P, edge);
-    UpdateDistances(d, edgeColor, quadraticDistances, t /*, edge*/, P, closestEdges /*, linearEdgeColors*/);
-    UpdateDistances(d, edgeColor, totalDistances, t /*, edge*/, P, closestEdges /*, linearEdgeColors*/);
-    
-    edge.color = PackColor(edgeColor);
-    if (CMP(d, globalMin))
+    else if (edge.type == QUADRATIC_BEZIER)
     {
-      globalMin = d;
-      globalSign = sign(d);
+      QuadraticBezier quadraticEdge;
+      quadraticEdge.p0 = edge.p0;
+      quadraticEdge.p1 = edge.p1;
+      quadraticEdge.p2 = edge.p2;
+      d = QuadraticEdgeSignedDistance(P, quadraticEdge, t);
     }
-  }
+    else
+    {
+      CubicBezier cubicEdge;
+      cubicEdge.p0 = edge.p0;
+      cubicEdge.p1 = edge.p1;
+      cubicEdge.p2 = edge.p2;
+      cubicEdge.p3 = edge.p3;
+      d = CubicEdgeSignedDistance(P, cubicEdge, t);
+    }
+    //UpdateDistances(d, edgeColor, totalDistances, t /*, edge*/, P, closestEdges /*, linearEdgeColors*/);
+    float pseudoDist = PseudoDistance(P, edge.p0, edge.p1, t, d);
+    //float pseudoDist = PseudoDistance(P, edge.p0, edge.p1, t, ap);
+    [unroll]
+    for (uint j = 0; j < 3; j++)
+    {
+      if (edgeColor[j] != 0)
+      {
+        totalDistances[j] = CMP(d, totalDistances[j], t, P, edge);
+
+#if 0
+        totalDistances[j] = d;
+        if (CMP(pseudoDist, totalDistances[j]))
+        {
+          totalDistances[j] = abs(pseudoDist);
+        }
 #endif
-  totalDistances.r = PseudoDistance(P, closestEdges[0].p0, closestEdges[0].p1, t, totalDistances.r);
-  totalDistances.g = PseudoDistance(P, closestEdges[1].p0, closestEdges[1].p1, t, totalDistances.g);
-  totalDistances.b = PseudoDistance(P, closestEdges[2].p0, closestEdges[2].p1, t, totalDistances.b);
-#if 1
-  for (uint k = 0; k < cubicEdgesSize; k++)
-  {
-    CubicBezier edge = cubicEdges[k];
-    float3 edgeColor = UnpackColor(edge.color);
-    float d = CubicEdgeSignedDistance(P, edge);
-    //UpdateDistances(d, edgeColor, cubicDistances, t /*, edge*/, P, closestEdges /*, linearEdgeColors*/);
-    UpdateDistances(d, edgeColor, totalDistances, t /*, edge*/, P, closestEdges /*, linearEdgeColors*/);
-    if (CMP(d, globalMin))
+    //closestEdge[0] = e;
+    //distances.r = pseudoDist;
+
+    //outEdgeColors.red = edgeColor;
+      }
+    }
+    
+    if (abs(d) < abs(globalMin))
     {
       globalMin = d;
       globalSign = sign(d);
     }
-
-    edge.color = PackColor(edgeColor);
   }
+
+  
+#if 0
   totalDistances.r = PseudoDistance(P, closestEdges[0].p0, closestEdges[0].p1, t, totalDistances.r);
   totalDistances.g = PseudoDistance(P, closestEdges[1].p0, closestEdges[1].p1, t, totalDistances.g);
   totalDistances.b = PseudoDistance(P, closestEdges[2].p0, closestEdges[2].p1, t, totalDistances.b);
 #endif
-  //return linearDistances * 8.0;
-  //return (linearDistances, quadraticDistances) * 8.0;
-  //return quadraticDistances * 8.0;
-
-  //return cubicDistances * 8.0;
-#if 1  
+  
+#if 1
   if (totalDistances.r * globalSign < 0.0) 
     totalDistances.r *= -1.0;
   if (totalDistances.g * globalSign < 0.0) 
     totalDistances.g *= -1.0;
   if (totalDistances.b * globalSign < 0.0) 
     totalDistances.b *= -1.0;
-#endif  
-  float3 finalDistances = float3(1000.0, 1000.0, 1000.0);
-  EdgeColors finalColors;
-
-  GetFinalValues(
-        linearDistances,
-        quadraticDistances,
-        cubicDistances,
-         finalDistances);
-	//return max(linearDistances, quadraticDistances) * 8.0;
+#endif
   return totalDistances * 8.0;
-  //float3 distances = EdgeSignedPseudoDistance(P, edgeColors);
-  //return distanceColor(distances);
-	//return ((linearDistances + (quadraticDistances * -1.0)) / 2.0); * 8.0;
-  //rCreturn finalDistances * 8.0;
 }
 
 RWTexture2D<float4> output;
@@ -602,7 +510,7 @@ static const float2 pxRange = { 1920.0 / 32.0, 1080.0 / 32.0 };
 [numthreads(8, 8, 1)]
 void CSMain(uint3 threadID : SV_DispatchThreadID)
 {
-  float2 P = -0.125 + ((threadID.xy /*+ 0.5*/) / 32.0) * 1.0;
+  float2 P = -0.125 + ((threadID.xy) / 32.0) * 1.0;
   //output[threadID.xy] = float4(GeneratePixelGPU(threadID.xy / float2(32, 32)) / float3(32, 32, 32) + 0.5, 1.0);
   //output[threadID.xy] = float4(GeneratePixelGPU(P), 1.0);
   float3 c = GeneratePixelGPU(P);
@@ -612,13 +520,4 @@ void CSMain(uint3 threadID : SV_DispatchThreadID)
 
   //output[threadID.xy] = float4(c / ur + 0.5, 1.0);
   output[threadID.xy] = float4(c, 1.0);
-  
-  uint linearEdgesSize = 0;
-  uint stride = 0;
-  linearEdges.GetDimensions(linearEdgesSize, stride);
-  for (uint i = 0; i < linearEdgesSize; i++)
-  {
-    //output[linearEdges[i].p0 * 32.0 + 0.125] = float4(1.0, 0.0, 0.0, 1.0);
-  }
-
 }
