@@ -37,11 +37,11 @@ struct EdgeColors
 bool CMP(float d, float distance)
 {
 #if 1 
-  bool r = false;
-  if (abs(d) == abs(distance) && sign(d) < 0.0)
-    r = true;
+  //bool r = false;
+  if (abs(d) == abs(distance) && sign(d) > 0.0)
+    return true;
 			
-  return r || abs(d) < abs(distance);
+  return abs(d) < abs(distance);
 #else
 	return abs(d) < abs(distance);
 	//return abs(d) - abs(distance) < 0.0;
@@ -553,14 +553,14 @@ float3 GeneratePixelGPU(float2 P)
     float3 edgeColor = UnpackColor(edge.color);
     float d = CubicEdgeSignedDistance(P, edge);
     //UpdateDistances(d, edgeColor, cubicDistances, t /*, edge*/, P, closestEdges /*, linearEdgeColors*/);
-        UpdateDistances(d, edgeColor, totalDistances, t /*, edge*/, P, closestEdges /*, linearEdgeColors*/);
+    UpdateDistances(d, edgeColor, totalDistances, t /*, edge*/, P, closestEdges /*, linearEdgeColors*/);
     if (CMP(d, globalMin))
     {
       globalMin = d;
       globalSign = sign(d);
     }
 
-edge.color = PackColor(edgeColor);
+    edge.color = PackColor(edgeColor);
   }
   totalDistances.r = PseudoDistance(P, closestEdges[0].p0, closestEdges[0].p1, t, totalDistances.r);
   totalDistances.g = PseudoDistance(P, closestEdges[1].p0, closestEdges[1].p1, t, totalDistances.g);
@@ -571,12 +571,14 @@ edge.color = PackColor(edgeColor);
   //return quadraticDistances * 8.0;
 
   //return cubicDistances * 8.0;
+#if 1  
   if (totalDistances.r * globalSign < 0.0) 
     totalDistances.r *= -1.0;
   if (totalDistances.g * globalSign < 0.0) 
     totalDistances.g *= -1.0;
   if (totalDistances.b * globalSign < 0.0) 
     totalDistances.b *= -1.0;
+#endif  
   float3 finalDistances = float3(1000.0, 1000.0, 1000.0);
   EdgeColors finalColors;
 

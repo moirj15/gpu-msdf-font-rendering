@@ -48,7 +48,7 @@ int main(int argc, char **argv)
     if (FontHandle *font = loadFont(ft, "C:\\Windows\\Fonts\\arialbd.ttf"))
     {
       Shape shape;
-      if (loadGlyph(shape, font, 'C', FONT_SCALING_EM_NORMALIZED))
+      if (loadGlyph(shape, font, 'A', FONT_SCALING_EM_NORMALIZED))
       {
         shape.normalize();
         //                      max. angle
