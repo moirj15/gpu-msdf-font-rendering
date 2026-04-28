@@ -71,8 +71,13 @@ float median(float r, float g, float b)
 
 float4 PSMain(VSOut vsOut) : SV_Target
 {
+  float2 min = float2(5.0 / 32.0, 5.0 / 32.0);
+  float2 max = float2(27.0 / 32.0, 27.0 / 32.0);
+
+  if (vsOut.texCoord.x < min.x || vsOut.texCoord.y < min.y || vsOut.texCoord.x > max.x || vsOut.texCoord.y > max.y)
+    return fgColor;
   float3 msd = msdf.Sample(samp, vsOut.texCoord).rgb;
-  float sd = median(msd.r, msd.g, msd.b) ;
+  float sd = median(msd.r, msd.g, msd.b);
   float screenPxDistance = screenPxRange(vsOut.texCoord) * (sd - 0.5);
   float opacity = clamp(screenPxDistance + 0.5, 0.0, 1.0);
   return lerp(bgColor, fgColor, opacity);

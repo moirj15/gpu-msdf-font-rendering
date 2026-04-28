@@ -63,7 +63,7 @@ int main(int argc, char **argv)
     if (FontHandle *font = loadFont(ft, "C:\\Windows\\Fonts\\arialbd.ttf"))
     {
       Shape shape;
-      if (loadGlyph(shape, font, 'A', FONT_SCALING_EM_NORMALIZED))
+      if (loadGlyph(shape, font, 'c', FONT_SCALING_EM_NORMALIZED))
       {
         shape.normalize();
         //                      max. angle
@@ -101,10 +101,6 @@ int main(int argc, char **argv)
           color = {1.0, 1.0, 1.0};
         else
           color = {1.0, 0.0, 1.0};
-        // if (c.winding() < 0)
-        //{
-        //   c.reverse();
-        // }
         for (auto &e : c.edges)
         {
           if (e->type() == msdfgen::LinearSegment::EDGE_TYPE)

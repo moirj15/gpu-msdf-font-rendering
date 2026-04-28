@@ -50,6 +50,38 @@ struct EdgeColors
   float3 blue;
 };
 
+
+float cross2D(float2 a, float2 b)
+{
+  return (a.x * b.y - a.y * b.x);
+}
+
+float PseudoDistance(float2 P, float2 a, float2 b, float t, float dist)
+{
+#if 1
+  if (t > 0.0 || t < 1.0) 
+    return dist;
+  float2 ab = normalize(b - a);
+  float2 aq = P - a;
+  float2 ortho = float2(-ab.y, ab.x);
+  return dot(aq, ortho);
+#endif
+  float tt = dot(P - a, b - a) / dot(b - a, b - a);
+
+  if (tt >= 0 && tt <= 1)
+  {
+
+    float2 ab = b - a;
+    float2 ap = P - a;
+    float det = cross2D(ab, ap);
+    return det / length(ab);
+  }
+  else if (tt < 0.0)
+    return length(P - a);
+  else
+    return length(P - b);
+}
+
 float CMP(float d, float distance, float t, float2 P, Bezier e)
 {
 #if 0
@@ -58,9 +90,14 @@ float CMP(float d, float distance, float t, float2 P, Bezier e)
   //  return true;
   if (abs(d) == abs(distance))
   {
+#if 0
     float2 ep = lerp(e.p0, e.p1, t);
     float ed = length(P - ep);
     return ed;
+#else
+	//return t;
+	return PseudoDistance(P, e.p0, e.p1, t, d);
+#endif
   }
   else if (abs(d) < abs(distance))
   {
@@ -71,8 +108,8 @@ float CMP(float d, float distance, float t, float2 P, Bezier e)
     return distance;
   }
 #else
-  if (abs(d) == abs(distance) && d > 0.0)
-    return d;
+  //if (abs(d) == abs(distance) && d > 0.0)
+  //  return d;
   return abs(d) < abs(distance) ? d : distance;
 	//return abs(d) < abs(distance);
 	//return abs(d) - abs(distance) < 0.0;
@@ -80,15 +117,7 @@ float CMP(float d, float distance, float t, float2 P, Bezier e)
 }
 
 
-float PseudoDistance(float2 P, float2 a, float2 b, float t, float dist)
-{
-  if (t > 0.0 || t < 1.0) 
-    return dist;
-  float2 ab = normalize(b - a);
-  float2 aq = P - a;
-  float2 ortho = float2(-ab.y, ab.x);
-  return dot(aq, ortho);
-}
+
 
 void UpdateDistances(float d, float3 edgeColor, inout float3 distances, float t /*, LinearBezier e*/, float2 P,
     Bezier e)
@@ -143,10 +172,6 @@ uint PackColor(float3 c)
   return uint(c.r * 255.0) << 24 | uint(c.g * 255.0) << 16 | uint(c.b * 255.0) << 8;
 }
 
-float cross2D(float2 a, float2 b)
-{
-  return a.x * b.y - a.y * b.x;
-}
 
 float LinearEdgeSignedDistance(float2 P, LinearBezier edge, out float t)
 {
@@ -424,9 +449,17 @@ float3 GeneratePixelGPU(float2 P)
   float globalMin = 10000.0;
   float globalSign = 1.0;
 
+
+  bool outside = true;
   for (uint i = 0; i < edgesSize; i++)
   {
     Bezier edge = edges[i];
+    float2 minP = min(edge.p0, edge.p1);
+    float2 maxP = max(edge.p0, edge.p1);
+    bool forcePositive = false;
+    if (P.x < minP.x || P.x > maxP.x || P.y < minP.y || P.y > maxP.y)
+      forcePositive = true;
+
     float3 edgeColor = UnpackColor(edge.color);
     float d;
     if (edge.type == LINEAR_BEZIER)
@@ -454,6 +487,11 @@ float3 GeneratePixelGPU(float2 P)
       cubicEdge.p3 = edge.p3;
       d = CubicEdgeSignedDistance(P, cubicEdge, t);
     }
+
+    if (cross2D(edge.p1 - edge.p0, P - edge.p0) < 0)
+    {
+      outside = true;
+    }
     //UpdateDistances(d, edgeColor, totalDistances, t /*, edge*/, P, closestEdges /*, linearEdgeColors*/);
     float pseudoDist = PseudoDistance(P, edge.p0, edge.p1, t, d);
     //float pseudoDist = PseudoDistance(P, edge.p0, edge.p1, t, ap);
@@ -465,10 +503,11 @@ float3 GeneratePixelGPU(float2 P)
         totalDistances[j] = CMP(d, totalDistances[j], t, P, edge);
 
 #if 0
-        totalDistances[j] = d;
-        if (CMP(pseudoDist, totalDistances[j]))
+        //totalDistances[j] = d;
+        if (abs(pseudoDist) < abs(globalMin))
         {
           totalDistances[j] = abs(pseudoDist);
+
         }
 #endif
     //closestEdge[0] = e;
@@ -477,12 +516,15 @@ float3 GeneratePixelGPU(float2 P)
     //outEdgeColors.red = edgeColor;
       }
     }
-    
+#if 0
     if (abs(d) < abs(globalMin))
     {
       globalMin = d;
       globalSign = sign(d);
+		
+
     }
+#endif
   }
 
   
@@ -492,7 +534,7 @@ float3 GeneratePixelGPU(float2 P)
   totalDistances.b = PseudoDistance(P, closestEdges[2].p0, closestEdges[2].p1, t, totalDistances.b);
 #endif
   
-#if 1
+#if 0
   if (totalDistances.r * globalSign < 0.0) 
     totalDistances.r *= -1.0;
   if (totalDistances.g * globalSign < 0.0) 
@@ -500,6 +542,7 @@ float3 GeneratePixelGPU(float2 P)
   if (totalDistances.b * globalSign < 0.0) 
     totalDistances.b *= -1.0;
 #endif
+
   return totalDistances * 8.0;
 }
 
@@ -518,6 +561,6 @@ void CSMain(uint3 threadID : SV_DispatchThreadID)
   float ur = 4 * (1.0 / 32.0);
   //float ur = pxRange.x * (1.0 / 32.0);
 
-  //output[threadID.xy] = float4(c / ur + 0.5, 1.0);
-  output[threadID.xy] = float4(c, 1.0);
+  output[threadID.xy] = float4(c / ur + 0.5, 1.0);
+  //output[threadID.xy] = float4(c, 1.0);
 }
