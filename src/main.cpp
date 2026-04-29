@@ -122,12 +122,6 @@ int main(int argc, char **argv)
           if (e->type() == msdfgen::LinearSegment::EDGE_TYPE)
           {
             auto *edge = static_cast<msdfgen::LinearSegment *>(&(*e));
-            // linearSegments.push_back(LinearBezier{
-            //   // glm::packUnorm4x8(glm::vec4{color, 1.0}),
-            //   glm::packUnorm4x8(glm::vec4{colors[edge->color], 1.0}),
-            //   glm::vec2{edge->p[0].x, edge->p[0].y},
-            //   glm::vec2{edge->p[1].x, edge->p[1].y},
-            // });
             segments.push_back(Bezier{
               // glm::packUnorm4x8(glm::vec4{color, 1.0}),
               glm::packUnorm4x8(glm::vec4{colors[edge->color], 1.0}),
@@ -140,12 +134,6 @@ int main(int argc, char **argv)
           {
             e->reverse();
             auto *edge = static_cast<msdfgen::QuadraticSegment *>(&(*e));
-            // quadraticSegments.push_back({
-            //   glm::packUnorm4x8(glm::vec4{colors[edge->color], 1.0}),
-            //   glm::vec2{edge->p[0].x, edge->p[0].y},
-            //   glm::vec2{edge->p[1].x, edge->p[1].y},
-            //   glm::vec2{edge->p[2].x, edge->p[2].y},
-            // });
             segments.push_back(Bezier{
               // glm::packUnorm4x8(glm::vec4{color, 1.0}),
               glm::packUnorm4x8(glm::vec4{colors[edge->color], 1.0}),
@@ -158,13 +146,6 @@ int main(int argc, char **argv)
           else if (e->type() == msdfgen::CubicSegment::EDGE_TYPE)
           {
             auto *edge = static_cast<msdfgen::CubicSegment *>(&(*e));
-            // cubicSegments.push_back({
-            //   glm::packUnorm4x8(glm::vec4{colors[edge->color], 1.0}),
-            //   glm::vec2{edge->p[0].x, edge->p[0].y},
-            //   glm::vec2{edge->p[1].x, edge->p[1].y},
-            //   glm::vec2{edge->p[2].x, edge->p[2].y},
-            //   glm::vec2{edge->p[3].x, edge->p[3].y},
-            // });
             segments.push_back(Bezier{
               // glm::packUnorm4x8(glm::vec4{color, 1.0}),
               glm::packUnorm4x8(glm::vec4{colors[edge->color], 1.0}),
