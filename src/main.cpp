@@ -72,7 +72,7 @@ int main(int argc, char **argv)
     if (FontHandle *font = loadFont(ft, "C:\\Windows\\Fonts\\arialbd.ttf"))
     {
       Shape shape;
-      if (loadGlyph(shape, font, 'c', FONT_SCALING_EM_NORMALIZED))
+      if (loadGlyph(shape, font, 'a', FONT_SCALING_EM_NORMALIZED))
       {
         shape.normalize();
         //                      max. angle
@@ -105,8 +105,8 @@ int main(int argc, char **argv)
       double l{}, b{}, r{}, t{};
       shape.bound(l, b, r, t);
       double ur      = 4 * 1.0 / 32.0;
-      bounds.l_bound = (((l + 0.125) * 32.0) / 32.0);
-      bounds.b_bound = (((b + 0.125) * 32.0) / 32.0);
+      bounds.l_bound = (((l + 0.125) * 32.0 + 0.5) / 32.0);
+      bounds.b_bound = (((b + 0.125) * 32.0 + 0.5) / 32.0);
       bounds.r_bound = (((r + 0.125) * 32.0 + 0.5) / 32.0);
       bounds.t_bound = (((t + 0.125) * 32.0 + 0.5) / 32.0);
 
