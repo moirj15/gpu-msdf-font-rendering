@@ -9,7 +9,7 @@ Window CreateWin(u32 width, u32 height, const char *title)
 {
   assert(SDL_Init(SDL_INIT_VIDEO) == 0);
   SDL_Window *window = SDL_CreateWindow(
-    "D3D Viewer",
+    title,
     SDL_WINDOWPOS_UNDEFINED,
     SDL_WINDOWPOS_UNDEFINED,
     width,

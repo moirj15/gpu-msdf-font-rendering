@@ -50,6 +50,14 @@ struct Bezier
   glm::vec2 p3;
 };
 
+struct GlyphBounds
+{
+  f32 l_bound{};
+  f32 b_bound{};
+  f32 r_bound{};
+  f32 t_bound{};
+};
+
 using namespace msdfgen;
 int main(int argc, char **argv)
 {
@@ -58,6 +66,7 @@ int main(int argc, char **argv)
   // std::vector<CubicBezier>     cubicSegments;
   std::vector<Bezier> segments;
   Bitmap<float, 3>    msdf(32, 32);
+  GlyphBounds         bounds;
   if (FreetypeHandle *ft = initializeFreetype())
   {
     if (FontHandle *font = loadFont(ft, "C:\\Windows\\Fonts\\arialbd.ttf"))
@@ -93,6 +102,13 @@ int main(int argc, char **argv)
         {1, 1, 1},
       };
       // shape.orientContours();
+      double l{}, b{}, r{}, t{};
+      shape.bound(l, b, r, t);
+      double ur      = 4 * 1.0 / 32.0;
+      bounds.l_bound = (((l + 0.125) * 32.0) / 32.0);
+      bounds.b_bound = (((b + 0.125) * 32.0) / 32.0);
+      bounds.r_bound = (((r + 0.125) * 32.0 + 0.5) / 32.0);
+      bounds.t_bound = (((t + 0.125) * 32.0 + 0.5) / 32.0);
 
       glm::vec3 color{};
       for (auto &c : shape.contours)
@@ -173,11 +189,12 @@ int main(int argc, char **argv)
   // std::sort(linearSegments.begin(), linearSegments.end(), [](auto &a, auto &b) {
   //   return glm::all(glm::lessThan(a.p0, b.p0));
   // });
-  const dx::Window window = dx::CreateWin(WIDTH, HEIGHT, "win");
+  const dx::Window window = dx::CreateWin(WIDTH, HEIGHT, "msdf gpu gen");
 
   dx::RenderContext ctx = dx::InitContext(window);
 
-  f32 clearColor[] = {0.5, 0.5, 0.5, 1.0};
+  auto textCB       = dx::CreateConstantBuffer<GlyphBounds>(ctx.Device(), &bounds);
+  f32  clearColor[] = {0.5, 0.5, 0.5, 1.0};
 
   ShaderWatcher shaderWatcher{ctx.Device()};
 
@@ -348,6 +365,7 @@ int main(int argc, char **argv)
     ctx.context->PSSetShaderResources(0, 1, gpuMsdfView.GetAddressOf());
 #endif
     ctx.context->PSSetSamplers(0, 1, msdfSampler.GetAddressOf());
+    ctx.context->PSSetConstantBuffers(0, 1, textCB.GetAddressOf());
     ctx.context->OMSetRenderTargets(
       1,
       ctx.backbufferRTV.GetAddressOf(),
