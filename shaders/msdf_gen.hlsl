@@ -41,7 +41,14 @@ struct Bezier
 //StructuredBuffer<QuadraticBezier> quadraticEdges : register(t1);
 //StructuredBuffer<CubicBezier> cubicEdges : register(t2);
 
+struct GlyphRange
+{
+  uint startIndex;
+  uint edgeCount;
+};
+
 StructuredBuffer<Bezier> edges : register(t0);
+StructuredBuffer<GlyphRange> glyphStartIndices : register(t1);
 
 struct EdgeColors
 {
@@ -428,7 +435,7 @@ float CubicEdgeSignedDistance(float2 P, CubicBezier e, out float tOut)
 }
 
 
-float3 GeneratePixelGPU(float2 P)
+float3 GeneratePixelGPU(float2 P, uint firstEdge, uint edgeCount)
 {
   uint stride = 0;
   
@@ -451,7 +458,7 @@ float3 GeneratePixelGPU(float2 P)
 
 
   bool outside = true;
-  for (uint i = 0; i < edgesSize; i++)
+  for (uint i = firstEdge; i < firstEdge + edgeCount; i++)
   {
     Bezier edge = edges[i];
     float2 minP = min(edge.p0, edge.p1);
@@ -556,11 +563,16 @@ void CSMain(uint3 threadID : SV_DispatchThreadID)
   float2 P = -0.125 + ((threadID.xy) / 32.0) * 1.0;
   //output[threadID.xy] = float4(GeneratePixelGPU(threadID.xy / float2(32, 32)) / float3(32, 32, 32) + 0.5, 1.0);
   //output[threadID.xy] = float4(GeneratePixelGPU(P), 1.0);
-  float3 c = GeneratePixelGPU(P);
+  GlyphRange range = glyphStartIndices[threadID.z];
+  float3 c = GeneratePixelGPU(P, range.startIndex, range.edgeCount);
 
   float ur = 4 * (1.0 / 32.0);
   //float ur = pxRange.x * (1.0 / 32.0);
 
-  output[threadID.xy] = float4(c / ur + 0.5, 1.0);
+  uint maxHorizontal = 512 / 32;
+  uint yOffset = threadID.z / maxHorizontal;
+  uint2 outputIndex = uint2((32 * (threadID.z % maxHorizontal)), yOffset * 32) + threadID.xy;
+
+  output[outputIndex] = float4(c / ur + 0.5, 1.0);
   //output[threadID.xy] = float4(c, 1.0);
 }

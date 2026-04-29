@@ -26,7 +26,7 @@ VSOut VSMain(uint vertexID : SV_VertexID)
   };
   VSOut ret = (VSOut) 0;
   ret.position = float4(pos[vertexID], 0, 1);
-  ret.texCoord = texCoord[vertexID];
+  ret.texCoord = texCoord[vertexID] * (32.0 / 512.0);
   return ret;
 }
 
