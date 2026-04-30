@@ -53,7 +53,7 @@ VSOut VSMain(uint vertexID : SV_VertexID)
   };
   VSOut ret = (VSOut) 0;
   //ret.position = float4((pos[vertexID] + position) * uvSize, 0, 1);
-  ret.position = float4(texCoord[vertexID].x - 0.5, texCoord[vertexID].y, 0, 1);
+  ret.position = float4((texCoord[vertexID].x - 0.5) * 2.0, texCoord[vertexID].y * 2.0, 0, 1);
   ret.texCoord = texCoord[vertexID];// * (32.0 / 512.0);
   ret.boundOffset = uvStart;
   return ret;
@@ -111,7 +111,7 @@ float4 PSMain(VSOut vsOut) : SV_Target
   float2 min = float2(5.0 / 32.0, 5.0 / 32.0);
   float2 max = float2(27.0 / 32.0, 27.0 / 32.0);
 
-  if (vsOut.texCoord.x < l_bound + vsOut.boundOffset || vsOut.texCoord.y < b_bound || vsOut.texCoord.x > r_bound || vsOut.texCoord.y > t_bound)
+  if (vsOut.texCoord.x < l_bound || vsOut.texCoord.y < b_bound || vsOut.texCoord.x > r_bound  || vsOut.texCoord.y > t_bound)
     return fgColor;
   float3 msd = msdf.Sample(samp, vsOut.texCoord).rgb;
   float sd = median(msd.r, msd.g, msd.b);

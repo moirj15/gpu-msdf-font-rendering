@@ -207,14 +207,11 @@ int main(int argc, char **argv)
 
   std::vector<ComPtr<ID3D11Buffer>> textCBs;
   std::vector<ComPtr<ID3D11Buffer>> vsConstants;
-  for (auto &glyph : glyphs)
-  {
-    textCBs.emplace_back(dx::CreateConstantBuffer<GlyphBounds>(ctx.Device(), &glyph.bounds));
-  }
   for (u32 i = 0; i < glyphs.size(); i++)
   {
     f32       blockSize    = 32.0f / 512.0f;
     const u32 blocksAcross = 512 / 32;
+    auto     &glyph        = glyphs[i];
 
     VsConstants c = {
       .position = glm::vec2{(-256.0f / 512.0f) + blockSize * (i % blocksAcross), i / blocksAcross},
@@ -222,7 +219,12 @@ int main(int argc, char **argv)
       .uvStart  = glm::vec2{blockSize * (i % blocksAcross), blockSize * (i / blocksAcross)},
       .uvSize   = glm::vec2{32.0f / 512.0f},
     };
+    glyph.bounds.l_bound += c.uvStart.x;
+    glyph.bounds.r_bound += c.uvStart.x;
+    glyph.bounds.t_bound += c.uvStart.y;
+    glyph.bounds.b_bound += c.uvStart.y;
     vsConstants.emplace_back(dx::CreateConstantBuffer<VsConstants>(ctx.Device(), &c));
+    textCBs.emplace_back(dx::CreateConstantBuffer<GlyphBounds>(ctx.Device(), &glyph.bounds));
   }
   auto textCB       = dx::CreateConstantBuffer<GlyphBounds>(ctx.Device(), &glyph1.bounds);
   f32  clearColor[] = {0.5, 0.5, 0.5, 1.0};
