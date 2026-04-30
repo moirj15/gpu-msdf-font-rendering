@@ -197,6 +197,33 @@ int main(int argc, char **argv)
 
   dx::RenderContext ctx = dx::InitContext(window);
 
+  struct VsConstants
+  {
+    glm::vec2 position;
+    glm::vec2 scale;
+    glm::vec2 uvStart;
+    glm::vec2 uvSize;
+  };
+
+  std::vector<ComPtr<ID3D11Buffer>> textCBs;
+  std::vector<ComPtr<ID3D11Buffer>> vsConstants;
+  for (auto &glyph : glyphs)
+  {
+    textCBs.emplace_back(dx::CreateConstantBuffer<GlyphBounds>(ctx.Device(), &glyph.bounds));
+  }
+  for (u32 i = 0; i < glyphs.size(); i++)
+  {
+    f32       blockSize    = 32.0f / 512.0f;
+    const u32 blocksAcross = 512 / 32;
+
+    VsConstants c = {
+      .position = glm::vec2{(-256.0f / 512.0f) + blockSize * (i % blocksAcross), i / blocksAcross},
+      .scale    = glm::vec2{0.1},
+      .uvStart  = glm::vec2{blockSize * (i % blocksAcross), blockSize * (i / blocksAcross)},
+      .uvSize   = glm::vec2{32.0f / 512.0f},
+    };
+    vsConstants.emplace_back(dx::CreateConstantBuffer<VsConstants>(ctx.Device(), &c));
+  }
   auto textCB       = dx::CreateConstantBuffer<GlyphBounds>(ctx.Device(), &glyph1.bounds);
   f32  clearColor[] = {0.5, 0.5, 0.5, 1.0};
 
@@ -314,43 +341,24 @@ int main(int argc, char **argv)
     glyphRanges.size(),
     {glyphRanges.begin(), glyphRanges.end()});
 
-  // BitmapRef<float, 3> msdfData = msdf;
-  std::vector<u32> glyphData;
-  // BitmapConstRef<float, 3> msdfRef = msdf;
-  // for (u32 y = 0; y < msdfRef.height; y++)
-  //{
-  //   for (u32 x = 0; x < msdfRef.width; x++)
-  //   {
-  //     u32 rgb = 0xff << 24;
-  //     rgb |= static_cast<u8>(~static_cast<i32>(255.5f - 255.f * clamp(msdfRef(x, y)[2]))) << 16;
-  //     rgb |= static_cast<u8>(~static_cast<i32>(255.5f - 255.f * clamp(msdfRef(x, y)[1]))) << 8;
-  //     rgb |= static_cast<u8>(~static_cast<i32>(255.5f - 255.f * clamp(msdfRef(x, y)[0]))) << 0;
-  //     glyphData.emplace_back(rgb);
-  //   }
-  // }
-
-  // D3D11_SUBRESOURCE_DATA glyphTexData{};
-  // glyphTexData.pSysMem     = glyphData.data();
-  // glyphTexData.SysMemPitch = sizeof(u32) * msdf.width();
-
-  // dx::ThrowIfFailed(
-  //   ctx.device->CreateTexture2D(&msdfTexDesc, &glyphTexData, msdfTex.GetAddressOf()));
-
-  // D3D11_SHADER_RESOURCE_VIEW_DESC quadViewDesc = {
-  //   .Format        = msdfTexDesc.Format,
-  //   .ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D,
-  //   .Texture2D =
-  //     {
-  //       .MostDetailedMip = 0,
-  //       .MipLevels       = 1,
-  //     },
-  // };
-
-  // dx::ThrowIfFailed(
-  //   ctx.device->CreateShaderResourceView(msdfTex.Get(), &quadViewDesc, msdfView.GetAddressOf()));
-
+  std::vector<u32>    glyphData;
   CD3D11_SAMPLER_DESC samplerDesc{CD3D11_DEFAULT{}};
   dx::ThrowIfFailed(ctx.device->CreateSamplerState(&samplerDesc, msdfSampler.GetAddressOf()));
+  {
+    ctx.DeviceContext()->CSSetShader(shaderWatcher.GetComputeProgram(msdfGenCS), nullptr, 0);
+    ctx.DeviceContext()->CSSetUnorderedAccessViews(0, 1, msdfCSView.GetAddressOf(), nullptr);
+    // std::array resources = {
+    //   linearBuf.view.Get(),
+    //   quadraticBuf.view.Get(),
+    //   cubicBuf.view.Get(),
+    // };
+    // ctx.DeviceContext()->CSSetShaderResources(0, 3, resources.data());
+    std::array srvs = {segmentBuf.view.Get(), glyphStartIndicesBuf.view.Get()};
+    ctx.DeviceContext()->CSSetShaderResources(0, 2, srvs.data());
+    ctx.DeviceContext()->Dispatch(4, 4, glyphs.size());
+    ID3D11UnorderedAccessView *v[] = {nullptr, nullptr};
+    ctx.DeviceContext()->CSSetUnorderedAccessViews(0, 2, v, nullptr);
+  }
 
   while (running)
   {
@@ -364,22 +372,6 @@ int main(int argc, char **argv)
     SDL_PumpEvents();
     ctx.context->ClearRenderTargetView(ctx.backbufferRTV.Get(), clearColor);
     ctx.context->ClearDepthStencilView(ctx.depthStencilView.Get(), D3D11_CLEAR_DEPTH, 1.0, 0);
-
-    {
-      ctx.DeviceContext()->CSSetShader(shaderWatcher.GetComputeProgram(msdfGenCS), nullptr, 0);
-      ctx.DeviceContext()->CSSetUnorderedAccessViews(0, 1, msdfCSView.GetAddressOf(), nullptr);
-      // std::array resources = {
-      //   linearBuf.view.Get(),
-      //   quadraticBuf.view.Get(),
-      //   cubicBuf.view.Get(),
-      // };
-      // ctx.DeviceContext()->CSSetShaderResources(0, 3, resources.data());
-      std::array srvs = {segmentBuf.view.Get(), glyphStartIndicesBuf.view.Get()};
-      ctx.DeviceContext()->CSSetShaderResources(0, 2, srvs.data());
-      ctx.DeviceContext()->Dispatch(4, 4, glyphs.size());
-      ID3D11UnorderedAccessView *v[] = {nullptr, nullptr};
-      ctx.DeviceContext()->CSSetUnorderedAccessViews(0, 2, v, nullptr);
-    }
 
     RenderProgram rp = shaderWatcher.GetRenderProgram(textRenderProgram);
 
@@ -401,14 +393,18 @@ int main(int argc, char **argv)
     ctx.context->PSSetShaderResources(0, 1, gpuMsdfView.GetAddressOf());
 #endif
     ctx.context->PSSetSamplers(0, 1, msdfSampler.GetAddressOf());
-    ctx.context->PSSetConstantBuffers(0, 1, textCB.GetAddressOf());
     ctx.context->OMSetRenderTargets(
       1,
       ctx.backbufferRTV.GetAddressOf(),
       ctx.depthStencilView.Get());
     // ctx.context->VSSetConstantBuffers(1, 1, mModelConstants[i].GetAddressOf());
     // ctx.context->DrawIndexed(draw.indexCount, draw.startIndex, draw.baseVertex);
-    ctx.context->Draw(6, 0);
+    for (u32 i = 0; i < glyphs.size(); i++)
+    {
+      ctx.context->VSSetConstantBuffers(0, 1, vsConstants[i].GetAddressOf());
+      ctx.context->PSSetConstantBuffers(0, 1, textCBs[i].GetAddressOf());
+      ctx.context->Draw(6, 0);
+    }
     ID3D11ShaderResourceView *srv = nullptr;
     ctx.context->PSSetShaderResources(0, 1, &srv);
 

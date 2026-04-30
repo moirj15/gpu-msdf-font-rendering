@@ -2,31 +2,60 @@ struct VSOut
 {
   float4 position : SV_Position;
   float2 texCoord : TEXCOORD;
+  float2 boundOffset : POSITION;
 };
+
+cbuffer vsconstants : register(b0)
+{
+  float2 position;
+  float2 scale;
+  float2 uvStart;
+  float2 uvSize;
+}
 
 VSOut VSMain(uint vertexID : SV_VertexID)
 {
+  //float2 pos[] =
+  //{
+  //  float2(-1.0, 1.0),
+  //  float2(-1.0, -1.0),
+  //  float2(1.0, 1.0),
+  //  float2(1.0, 1.0),
+  //  float2(-1.0, -1.0),
+  //  float2(1.0, -1.0),
+  //};
   float2 pos[] =
   {
-    float2(-1.0, 1.0),
-    float2(-1.0, -1.0),
-    float2(1.0, 1.0),
-    float2(1.0, 1.0),
-    float2(-1.0, -1.0),
-    float2(1.0, -1.0),
+    float2(position.x, position.y + scale.y),
+    float2(position.x, position.y),
+    float2(position.x + scale.x, position.y + scale.y),
+    float2(position.x + scale.x, position.y + scale.y),
+    float2(position.x, position.y),
+    float2(position.x + scale.x, position.y),
   };
+  //float2 texCoord[] =
+  //{
+  //  float2(0, 1),
+  //  float2(0, 0),
+  //  float2(1, 1),
+  //  float2(1, 1),
+  //  float2(0, 0),
+  //  float2(1, 0),
+  //};
   float2 texCoord[] =
   {
-    float2(0, 1),
-    float2(0, 0),
-    float2(1, 1),
-    float2(1, 1),
-    float2(0, 0),
-    float2(1, 0),
+    float2(uvStart.x, uvStart.y + uvSize.y),
+    float2(uvStart.x, uvStart.y),
+    float2(uvStart.x + uvSize.x, uvStart.y + uvSize.y),
+    float2(uvStart.x + uvSize.x, uvStart.y + uvSize.y),
+    float2(uvStart.x, uvStart.y),
+    float2(uvStart.x + uvSize.x, uvStart.y),
   };
   VSOut ret = (VSOut) 0;
-  ret.position = float4(pos[vertexID], 0, 1);
-  ret.texCoord = texCoord[vertexID] * (32.0 / 512.0);
+  //ret.position = float4((pos[vertexID] + position) * uvSize, 0, 1);
+  ret.position = float4(texCoord[vertexID].x - 0.5, texCoord[vertexID].y, 0, 1);
+  ret.texCoord = texCoord[vertexID];// * (32.0 / 512.0);
+  ret.boundOffset = uvStart;
   return ret;
 }
 
@@ -82,7 +111,7 @@ float4 PSMain(VSOut vsOut) : SV_Target
   float2 min = float2(5.0 / 32.0, 5.0 / 32.0);
   float2 max = float2(27.0 / 32.0, 27.0 / 32.0);
 
-  if (vsOut.texCoord.x < l_bound || vsOut.texCoord.y < b_bound || vsOut.texCoord.x > r_bound || vsOut.texCoord.y > t_bound)
+  if (vsOut.texCoord.x < l_bound + vsOut.boundOffset || vsOut.texCoord.y < b_bound || vsOut.texCoord.x > r_bound || vsOut.texCoord.y > t_bound)
     return fgColor;
   float3 msd = msdf.Sample(samp, vsOut.texCoord).rgb;
   float sd = median(msd.r, msd.g, msd.b);
